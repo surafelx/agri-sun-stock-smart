@@ -1,8 +1,8 @@
 import { ReactNode, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase, User } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { LogOut, Sun, LayoutDashboard, Package, ArrowLeftRight, Settings } from "lucide-react";
+import { LogOut, Sun, LayoutDashboard, Package, ArrowLeftRight, Settings, BarChart3 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface LayoutProps {
@@ -11,6 +11,7 @@ interface LayoutProps {
 
 const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -43,6 +44,13 @@ const Layout = ({ children }: LayoutProps) => {
     navigate("/auth");
   };
 
+  const isActiveRoute = (path: string) => {
+    if (path === "/") {
+      return location.pathname === "/";
+    }
+    return location.pathname.startsWith(path);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -71,19 +79,48 @@ const Layout = ({ children }: LayoutProps) => {
           </div>
           
           <nav className="hidden md:flex items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/")} className="h-8 text-xs">
+            <Button
+              variant={isActiveRoute("/") ? "default" : "ghost"}
+              size="sm"
+              onClick={() => navigate("/")}
+              className="h-8 text-xs"
+            >
               <LayoutDashboard className="w-3.5 h-3.5 mr-1.5" />
               Dashboard
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/items")} className="h-8 text-xs">
+            <Button
+              variant={isActiveRoute("/items") ? "default" : "ghost"}
+              size="sm"
+              onClick={() => navigate("/items")}
+              className="h-8 text-xs"
+            >
               <Package className="w-3.5 h-3.5 mr-1.5" />
-              Stock Cards
+              Stock Items
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/transactions")} className="h-8 text-xs">
+            <Button
+              variant={isActiveRoute("/stock-balance") ? "default" : "ghost"}
+              size="sm"
+              onClick={() => navigate("/stock-balance")}
+              className="h-8 text-xs"
+            >
+              <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
+              Stock Balance
+            </Button>
+            <Button
+              variant={isActiveRoute("/transactions") ? "default" : "ghost"}
+              size="sm"
+              onClick={() => navigate("/transactions")}
+              className="h-8 text-xs"
+            >
               <ArrowLeftRight className="w-3.5 h-3.5 mr-1.5" />
               Transactions
             </Button>
-            <Button variant="ghost" size="sm" onClick={() => navigate("/admin")} className="h-8 text-xs">
+            <Button
+              variant={isActiveRoute("/admin") ? "default" : "ghost"}
+              size="sm"
+              onClick={() => navigate("/admin")}
+              className="h-8 text-xs"
+            >
               <Settings className="w-3.5 h-3.5 mr-1.5" />
               Admin
             </Button>

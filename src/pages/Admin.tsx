@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, FileText, Shield, Plus, Trash2 } from "lucide-react";
+import { Settings, Users, FileText, Shield, Plus, Trash2, Tag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface UserRole {
@@ -23,16 +23,43 @@ interface UserRole {
   };
 }
 
+interface Category {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface Subcategory {
+  id: string;
+  name: string;
+  category_id: string;
+  created_at: string;
+  updated_at: string;
+  categories?: {
+    name: string;
+  };
+}
+
 const Admin = () => {
   const [userRoles, setUserRoles] = useState<UserRole[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [subcategoryDialogOpen, setSubcategoryDialogOpen] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserRole, setNewUserRole] = useState<"admin" | "inventory_clerk" | "accountant">("inventory_clerk");
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newSubcategoryName, setNewSubcategoryName] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
     fetchUserRoles();
+    fetchCategories();
+    fetchSubcategories();
   }, []);
 
   const fetchUserRoles = async () => {
@@ -58,14 +85,50 @@ const Admin = () => {
       })) || [];
 
       setUserRoles(mergedData);
-      setLoading(false);
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error fetching user roles",
         description: error.message,
       });
+    } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error fetching categories",
+        description: error.message,
+      });
+    }
+  };
+
+  const fetchSubcategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subcategories')
+        .select('*, categories(name)')
+        .order('name');
+
+      if (error) throw error;
+      setSubcategories(data || []);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error fetching subcategories",
+        description: error.message,
+      });
     }
   };
 
@@ -138,6 +201,106 @@ const Admin = () => {
     }
   };
 
+  const handleAddCategory = async () => {
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .insert([{ name: newCategoryName }]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Category added successfully",
+      });
+
+      setCategoryDialogOpen(false);
+      setNewCategoryName("");
+      fetchCategories();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error adding category",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleAddSubcategory = async () => {
+    try {
+      const { error } = await supabase
+        .from('subcategories')
+        .insert([{ name: newSubcategoryName, category_id: selectedCategoryId }]);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Subcategory added successfully",
+      });
+
+      setSubcategoryDialogOpen(false);
+      setNewSubcategoryName("");
+      setSelectedCategoryId("");
+      fetchSubcategories();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error adding subcategory",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    try {
+      const { error } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', categoryId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Category removed successfully",
+      });
+
+      fetchCategories();
+      fetchSubcategories(); // Refresh subcategories as they might be deleted
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error removing category",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleDeleteSubcategory = async (subcategoryId: string) => {
+    try {
+      const { error } = await supabase
+        .from('subcategories')
+        .delete()
+        .eq('id', subcategoryId);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Subcategory removed successfully",
+      });
+
+      fetchSubcategories();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error removing subcategory",
+        description: error.message,
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -157,20 +320,16 @@ const Admin = () => {
         </div>
 
         <Tabs defaultValue="users" className="space-y-3">
-          <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
-            <TabsTrigger value="users" className="text-sm">
-              <Users className="w-4 h-4 mr-1" />
-              Users & Roles
-            </TabsTrigger>
-            <TabsTrigger value="forms" className="text-sm">
-              <FileText className="w-4 h-4 mr-1" />
-              Form Templates
-            </TabsTrigger>
-            <TabsTrigger value="settings" className="text-sm">
-              <Settings className="w-4 h-4 mr-1" />
-              System Settings
-            </TabsTrigger>
-          </TabsList>
+           <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
+             <TabsTrigger value="users" className="text-sm">
+               <Users className="w-4 h-4 mr-1" />
+               Users & Roles
+             </TabsTrigger>
+             <TabsTrigger value="categories" className="text-sm">
+               <Tag className="w-4 h-4 mr-1" />
+               Categories
+             </TabsTrigger>
+           </TabsList>
 
           <TabsContent value="users" className="space-y-3">
             <Card className="shadow-card">
@@ -300,37 +459,183 @@ const Admin = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="forms" className="space-y-3">
+          <TabsContent value="categories" className="space-y-3">
             <Card className="shadow-card">
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Form Templates</CardTitle>
-                <CardDescription className="text-sm">Manage custom form templates for items and transactions</CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Categories</CardTitle>
+                    <CardDescription className="text-sm">Manage product categories</CardDescription>
+                  </div>
+                  <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm">
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add Category
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add Category</DialogTitle>
+                        <DialogDescription>
+                          Create a new product category
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3 py-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="categoryName" className="text-sm">Category Name</Label>
+                          <Input
+                            id="categoryName"
+                            placeholder="e.g., Electronics"
+                            value={newCategoryName}
+                            onChange={(e) => setNewCategoryName(e.target.value)}
+                            className="h-9"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setCategoryDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button size="sm" onClick={handleAddCategory}>
+                          Add Category
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </CardHeader>
               <CardContent className="pt-0">
-                <div className="text-center py-8 text-muted-foreground">
-                  <FileText className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">Form template designer coming soon</p>
-                  <p className="text-xs mt-1">Create custom fields for different product types</p>
+                <div className="border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="h-9">Category Name</TableHead>
+                        <TableHead className="h-9 w-[80px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {categories.map((category) => (
+                        <TableRow key={category.id}>
+                          <TableCell className="py-2 font-medium">
+                            {category.name}
+                          </TableCell>
+                          <TableCell className="py-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteCategory(category.id)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-card">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Subcategories</CardTitle>
+                    <CardDescription className="text-sm">Manage product subcategories</CardDescription>
+                  </div>
+                  <Dialog open={subcategoryDialogOpen} onOpenChange={setSubcategoryDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button size="sm">
+                        <Plus className="w-4 h-4 mr-1" />
+                        Add Subcategory
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add Subcategory</DialogTitle>
+                        <DialogDescription>
+                          Create a new product subcategory
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3 py-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="subcategoryName" className="text-sm">Subcategory Name</Label>
+                          <Input
+                            id="subcategoryName"
+                            placeholder="e.g., Smartphones"
+                            value={newSubcategoryName}
+                            onChange={(e) => setNewSubcategoryName(e.target.value)}
+                            className="h-9"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="categorySelect" className="text-sm">Category</Label>
+                          <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
+                            <SelectTrigger id="categorySelect" className="h-9">
+                              <SelectValue placeholder="Select a category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categories.map((category) => (
+                                <SelectItem key={category.id} value={category.id}>
+                                  {category.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setSubcategoryDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button size="sm" onClick={handleAddSubcategory}>
+                          Add Subcategory
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="h-9">Subcategory Name</TableHead>
+                        <TableHead className="h-9">Category</TableHead>
+                        <TableHead className="h-9 w-[80px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {subcategories.map((subcategory) => (
+                        <TableRow key={subcategory.id}>
+                          <TableCell className="py-2 font-medium">
+                            {subcategory.name}
+                          </TableCell>
+                          <TableCell className="py-2 text-sm">
+                            {subcategory.categories?.name || "N/A"}
+                          </TableCell>
+                          <TableCell className="py-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteSubcategory(subcategory.id)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Trash2 className="w-4 h-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="settings" className="space-y-3">
-            <Card className="shadow-card">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">System Settings</CardTitle>
-                <CardDescription className="text-sm">Configure system-wide preferences</CardDescription>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="text-center py-8 text-muted-foreground">
-                  <Settings className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p className="text-sm">System configuration coming soon</p>
-                  <p className="text-xs mt-1">Manage currencies, tax rates, and business settings</p>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       </div>
     </Layout>

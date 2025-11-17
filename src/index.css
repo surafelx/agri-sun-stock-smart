@@ -17,10 +17,10 @@ All colors MUST be HSL.
     --popover: 0 0% 100%;
     --popover-foreground: 20 14.3% 4.1%;
 
-    /* Solar-inspired amber/orange primary */
-    --primary: 24 100% 50%;
+    /* Green primary color */
+    --primary: 142 76% 36%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 28 100% 60%;
+    --primary-glow: 142 76% 45%;
 
     /* Success green for stock status */
     --secondary: 142 76% 36%;
@@ -37,19 +37,19 @@ All colors MUST be HSL.
 
     --border: 20 5.9% 90%;
     --input: 20 5.9% 90%;
-    --ring: 24 100% 50%;
+    --ring: 142 76% 36%;
 
     --radius: 0.75rem;
 
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(24 100% 50%), hsl(28 100% 60%));
+    --gradient-primary: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 45%));
     --gradient-card: linear-gradient(135deg, hsl(0 0% 100%), hsl(60 4.8% 95.9%));
-    
+
     /* Shadows */
-    --shadow-glow: 0 10px 40px -10px hsl(24 100% 50% / 0.3);
+    --shadow-glow: 0 10px 40px -10px hsl(142 76% 36% / 0.3);
     --shadow-card: 0 4px 6px -1px hsl(20 14.3% 4.1% / 0.1);
 
-    --chart-1: 24 100% 50%;
+    --chart-1: 142 76% 36%;
     --chart-2: 142 76% 36%;
     --chart-3: 200 100% 45%;
     --chart-4: 280 65% 60%;
@@ -66,9 +66,9 @@ All colors MUST be HSL.
     --popover: 20 14.3% 4.1%;
     --popover-foreground: 60 9.1% 97.8%;
 
-    --primary: 24 100% 50%;
+    --primary: 142 76% 36%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 28 100% 60%;
+    --primary-glow: 142 76% 45%;
 
     --secondary: 142 76% 36%;
     --secondary-foreground: 0 0% 100%;
@@ -84,15 +84,15 @@ All colors MUST be HSL.
 
     --border: 12 6.5% 15.1%;
     --input: 12 6.5% 15.1%;
-    --ring: 24 100% 50%;
+    --ring: 142 76% 36%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(24 100% 50%), hsl(28 100% 60%));
+    --gradient-primary: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 45%));
     --gradient-card: linear-gradient(135deg, hsl(20 14.3% 4.1%), hsl(12 6.5% 15.1%));
-    
-    --shadow-glow: 0 10px 40px -10px hsl(24 100% 50% / 0.5);
+
+    --shadow-glow: 0 10px 40px -10px hsl(142 76% 36% / 0.5);
     --shadow-card: 0 4px 6px -1px hsl(0 0% 0% / 0.3);
 
-    --chart-1: 24 100% 50%;
+    --chart-1: 142 76% 36%;
     --chart-2: 142 76% 36%;
     --chart-3: 200 100% 45%;
     --chart-4: 280 65% 60%;

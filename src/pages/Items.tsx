@@ -24,25 +24,47 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Plus, Package, AlertTriangle, Edit, Trash2, FileText } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface Subcategory {
+  id: string;
+  name: string;
+  category_id: string;
+}
 
 interface Item {
   id: string;
   name: string;
   sku: string;
-  category: string;
+  category_id: string | null;
+  subcategory_id: string | null;
+  cost_price: number;
   description: string;
   quantity: number;
   unit_price: number;
   supplier: string;
   parameters: any;
   low_stock_threshold: number;
+  categories?: {
+    name: string;
+  };
+  subcategories?: {
+    name: string;
+  };
 }
 
 const Items = () => {
   const navigate = useNavigate();
   const [items, setItems] = useState<Item[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Item | null>(null);
@@ -51,7 +73,8 @@ const Items = () => {
   const [formData, setFormData] = useState({
     name: "",
     sku: "",
-    category: "",
+    category_id: "",
+    subcategory_id: "",
     description: "",
     quantity: "",
     unit_price: "",
@@ -63,6 +86,8 @@ const Items = () => {
   });
 
   useEffect(() => {
+    fetchCategories();
+    fetchSubcategories();
     fetchItems();
   }, []);
 
@@ -70,7 +95,7 @@ const Items = () => {
     try {
       const { data, error } = await supabase
         .from('items')
-        .select('*')
+        .select('*, categories(name), subcategories(name)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -86,6 +111,42 @@ const Items = () => {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error fetching categories",
+        description: error.message,
+      });
+    }
+  };
+
+  const fetchSubcategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subcategories')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setSubcategories(data || []);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error fetching subcategories",
+        description: error.message,
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -96,7 +157,8 @@ const Items = () => {
       const itemData = {
         name: formData.name,
         sku: formData.sku,
-        category: formData.category,
+        category_id: formData.category_id || null,
+        subcategory_id: formData.subcategory_id || null,
         description: formData.description,
         quantity: parseFloat(formData.quantity),
         unit_price: parseFloat(formData.unit_price),
@@ -176,7 +238,8 @@ const Items = () => {
     setFormData({
       name: "",
       sku: "",
-      category: "",
+      category_id: "",
+      subcategory_id: "",
       description: "",
       quantity: "",
       unit_price: "",
@@ -194,7 +257,8 @@ const Items = () => {
     setFormData({
       name: item.name,
       sku: item.sku,
-      category: item.category,
+      category_id: item.category_id || "",
+      subcategory_id: item.subcategory_id || "",
       description: item.description || "",
       quantity: item.quantity.toString(),
       unit_price: item.unit_price.toString(),
@@ -212,7 +276,7 @@ const Items = () => {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">Stock Cards</h2>
+            <h2 className="text-2xl font-bold tracking-tight">Stock Items</h2>
             <p className="text-sm text-muted-foreground">Manage your solar equipment inventory</p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
@@ -258,15 +322,37 @@ const Items = () => {
 
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label htmlFor="category">Category *</Label>
-                    <Input
-                      id="category"
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                      placeholder="e.g., Solar Panels, Inverters, Batteries"
-                      required
-                    />
+                    <Label htmlFor="category">Category</Label>
+                    <Select value={formData.category_id} onValueChange={(value) => setFormData({ ...formData, category_id: value, subcategory_id: "" })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {categories.map((category) => (
+                          <SelectItem key={category.id} value={category.id}>
+                            {category.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="subcategory">Subcategory</Label>
+                    <Select value={formData.subcategory_id} onValueChange={(value) => setFormData({ ...formData, subcategory_id: value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select subcategory" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {subcategories.filter(sub => !formData.category_id || sub.category_id === formData.category_id).map((subcategory) => (
+                          <SelectItem key={subcategory.id} value={subcategory.id}>
+                            {subcategory.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="supplier">Supplier</Label>
                     <Input
@@ -400,6 +486,7 @@ const Items = () => {
                         <TableHead className="h-9 text-xs">SKU</TableHead>
                         <TableHead className="h-9 text-xs">Name</TableHead>
                         <TableHead className="h-9 text-xs">Category</TableHead>
+                        <TableHead className="h-9 text-xs">Subcategory</TableHead>
                         <TableHead className="h-9 text-xs">Quantity</TableHead>
                         <TableHead className="h-9 text-xs">Status</TableHead>
                         <TableHead className="h-9 text-xs text-right">Actions</TableHead>
@@ -417,7 +504,8 @@ const Items = () => {
                               {item.name}
                             </button>
                           </TableCell>
-                          <TableCell className="text-sm py-2">{item.category}</TableCell>
+                          <TableCell className="text-sm py-2">{item.categories?.name || "N/A"}</TableCell>
+                          <TableCell className="text-sm py-2">{item.subcategories?.name || "N/A"}</TableCell>
                           <TableCell className="text-sm py-2 font-semibold">{item.quantity}</TableCell>
                           <TableCell className="py-2">
                             {item.quantity <= item.low_stock_threshold ? (

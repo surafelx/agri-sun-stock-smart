@@ -16,6 +16,7 @@ interface Item {
   category: string;
   unit_price: number;
   quantity: number;
+  cost_price: number;
 }
 
 interface StockMovement {
@@ -27,6 +28,8 @@ interface StockMovement {
   quantity_out: number;
   balance: number;
   unit_price: number;
+  value_in: number;
+  value_out: number;
   notes: string;
   customer_supplier: string;
 }
@@ -50,12 +53,19 @@ const StockCard = () => {
       // Fetch item details
       const { data: itemData, error: itemError } = await supabase
         .from('items')
-        .select('*')
+        .select('*, categories(name)')
         .eq('id', itemId)
         .single();
 
       if (itemError) throw itemError;
-      setItem(itemData);
+
+      // Transform the data to match the interface
+      const transformedItem = {
+        ...itemData,
+        category: itemData.categories?.name || 'Uncategorized'
+      };
+
+      setItem(transformedItem);
 
       // Fetch transaction items for this item
       const { data: transactionItems, error: transError } = await supabase
@@ -77,14 +87,34 @@ const StockCard = () => {
 
       // Calculate running balance
       let runningBalance = 0;
-      const movementsData: StockMovement[] = transactionItems.map((ti: any) => {
+      const movementsData: StockMovement[] = [];
+
+      // Add opening balance if there are transactions
+      if (transactionItems.length > 0) {
+        movementsData.push({
+          id: 'opening',
+          date: new Date().toISOString().split('T')[0], // Today's date for opening
+          reference: 'Opening Balance',
+          type: 'adjustment',
+          quantity_in: 0,
+          quantity_out: 0,
+          balance: 0,
+          unit_price: 0,
+          value_in: 0,
+          value_out: 0,
+          notes: 'Opening balance',
+          customer_supplier: 'System',
+        });
+      }
+
+      transactionItems.forEach((ti: any) => {
         const transaction = ti.transactions;
         const quantityIn = transaction.transaction_type === 'purchase' ? ti.quantity : 0;
         const quantityOut = transaction.transaction_type === 'sale' ? ti.quantity : 0;
-        
+
         runningBalance += quantityIn - quantityOut;
 
-        return {
+        movementsData.push({
           id: ti.id,
           date: transaction.transaction_date,
           reference: transaction.reference_number,
@@ -93,9 +123,11 @@ const StockCard = () => {
           quantity_out: quantityOut,
           balance: runningBalance,
           unit_price: ti.unit_price,
+          value_in: quantityIn * ti.unit_price,
+          value_out: quantityOut * ti.unit_price,
           notes: transaction.notes || '',
           customer_supplier: transaction.customer_supplier_name || 'N/A',
-        };
+        });
       });
 
       setMovements(movementsData);
@@ -144,8 +176,8 @@ const StockCard = () => {
               Back
             </Button>
             <div>
-              <h2 className="text-2xl font-bold">Stock Card</h2>
-              <p className="text-sm text-muted-foreground">Transaction history and balance</p>
+              <h2 className="text-2xl font-bold">Stock Card - Balance Sheet</h2>
+              <p className="text-sm text-muted-foreground">Inventory ledger and balance tracking</p>
             </div>
           </div>
         </div>
@@ -191,8 +223,8 @@ const StockCard = () => {
         {/* Transaction History */}
         <Card className="shadow-card">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">Movement History</CardTitle>
-            <CardDescription className="text-sm">Complete transaction history with running balance</CardDescription>
+            <CardTitle className="text-base">Stock Ledger</CardTitle>
+            <CardDescription className="text-sm">Detailed inventory movements and balance tracking</CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
             {movements.length === 0 ? (
@@ -206,51 +238,39 @@ const StockCard = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="h-9 text-xs">Date</TableHead>
-                      <TableHead className="h-9 text-xs">Type</TableHead>
+                      <TableHead className="h-9 text-xs">Description</TableHead>
                       <TableHead className="h-9 text-xs">Reference</TableHead>
-                      <TableHead className="h-9 text-xs">Customer/Supplier</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Qty In</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Qty Out</TableHead>
+                      <TableHead className="h-9 text-xs text-right">Debit (In)</TableHead>
+                      <TableHead className="h-9 text-xs text-right">Credit (Out)</TableHead>
                       <TableHead className="h-9 text-xs text-right">Balance</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Unit Price</TableHead>
+                      <TableHead className="h-9 text-xs text-right">Value</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {movements.map((movement) => (
                       <TableRow key={movement.id}>
                         <TableCell className="py-2 text-xs">
-                          {new Date(movement.date).toLocaleDateString('en-US', { 
-                            year: 'numeric', 
-                            month: 'short', 
-                            day: 'numeric' 
+                          {new Date(movement.date).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
                           })}
                         </TableCell>
-                        <TableCell className="py-2">
-                          <Badge 
-                            variant={movement.type === 'purchase' ? 'secondary' : 'default'}
-                            className="text-xs gap-1"
-                          >
-                            {movement.type === 'purchase' ? (
-                              <TrendingUp className="w-3 h-3" />
-                            ) : (
-                              <TrendingDown className="w-3 h-3" />
-                            )}
-                            {movement.type.charAt(0).toUpperCase() + movement.type.slice(1)}
-                          </Badge>
+                        <TableCell className="py-2 text-xs">
+                          {movement.id === 'opening' ? 'Opening Balance' : `${movement.type.charAt(0).toUpperCase() + movement.type.slice(1)} - ${movement.customer_supplier}`}
                         </TableCell>
                         <TableCell className="py-2 font-mono text-xs">{movement.reference}</TableCell>
-                        <TableCell className="py-2 text-xs">{movement.customer_supplier}</TableCell>
-                        <TableCell className="py-2 text-right font-semibold text-success text-xs">
-                          {movement.quantity_in > 0 ? `+${movement.quantity_in}` : '-'}
+                        <TableCell className="py-2 text-right text-xs">
+                          {movement.quantity_in > 0 ? `${movement.quantity_in} @ ETB ${movement.unit_price}` : '-'}
                         </TableCell>
-                        <TableCell className="py-2 text-right font-semibold text-destructive text-xs">
-                          {movement.quantity_out > 0 ? `-${movement.quantity_out}` : '-'}
+                        <TableCell className="py-2 text-right text-xs">
+                          {movement.quantity_out > 0 ? `${movement.quantity_out} @ ETB ${movement.unit_price}` : '-'}
                         </TableCell>
                         <TableCell className="py-2 text-right font-bold text-sm">
                           {movement.balance}
                         </TableCell>
                         <TableCell className="py-2 text-right text-xs">
-                          ETB {movement.unit_price}
+                          ETB {(movement.value_in - movement.value_out).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))}

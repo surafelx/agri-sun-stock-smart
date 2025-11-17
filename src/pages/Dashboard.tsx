@@ -37,7 +37,9 @@ const Dashboard = () => {
 
       // Calculate stats
       const totalValue = items?.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.unit_price)), 0) || 0;
-      const lowStock = items?.filter(item => Number(item.quantity) <= Number(item.low_stock_threshold)) || [];
+      const totalCost = items?.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.cost_price)), 0) || 0;
+      const lowStock = items?.filter(item => Number(item.quantity) > 0 && Number(item.quantity) <= Number(item.low_stock_threshold)) || [];
+      const outOfStock = items?.filter(item => Number(item.quantity) === 0) || [];
 
       // Fetch recent transactions
       const { data: transactions, error: transError } = await supabase
@@ -51,18 +53,49 @@ const Dashboard = () => {
       setStats({
         totalItems: items?.length || 0,
         totalValue,
-        lowStockCount: lowStock.length,
+        lowStockCount: lowStock.length + outOfStock.length,
         recentTransactions: transactions?.length || 0,
       });
 
-      // Create mock chart data
-      setChartData([
-        { name: 'Jan', purchases: 4000, sales: 2400 },
-        { name: 'Feb', purchases: 3000, sales: 1398 },
-        { name: 'Mar', purchases: 2000, sales: 9800 },
-        { name: 'Apr', purchases: 2780, sales: 3908 },
-        { name: 'May', purchases: 1890, sales: 4800 },
-        { name: 'Jun', purchases: 2390, sales: 3800 },
+      // Fetch real transaction data for charts
+      const { data: allTransactions, error: allTransError } = await supabase
+        .from('transactions')
+        .select('transaction_type, total_amount, transaction_date')
+        .order('transaction_date', { ascending: false })
+        .limit(100); // Get last 100 transactions for chart data
+
+      if (allTransError) throw allTransError;
+
+      // Process transaction data for charts
+      const monthlyData: { [key: string]: { purchases: number; sales: number } } = {};
+
+      allTransactions?.forEach(transaction => {
+        const date = new Date(transaction.transaction_date);
+        const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = { purchases: 0, sales: 0 };
+        }
+
+        if (transaction.transaction_type === 'purchase') {
+          monthlyData[monthKey].purchases += Number(transaction.total_amount);
+        } else if (transaction.transaction_type === 'sale') {
+          monthlyData[monthKey].sales += Number(transaction.total_amount);
+        }
+      });
+
+      // Convert to chart format and sort by date
+      const chartDataArray = Object.entries(monthlyData)
+        .map(([name, data]) => ({ name, ...data }))
+        .sort((a, b) => {
+          const dateA = new Date(a.name);
+          const dateB = new Date(b.name);
+          return dateA.getTime() - dateB.getTime();
+        })
+        .slice(-6); // Show last 6 months
+
+      setChartData(chartDataArray.length > 0 ? chartDataArray : [
+        { name: 'No Data', purchases: 0, sales: 0 }
       ]);
 
       setLoading(false);
@@ -109,8 +142,8 @@ const Dashboard = () => {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-xl font-bold">${stats.totalValue.toFixed(2)}</div>
-              <p className="text-[10px] text-muted-foreground">Current stock value</p>
+              <div className="text-xl font-bold">ETB {stats.totalValue.toLocaleString()}</div>
+              <p className="text-[10px] text-muted-foreground">Current market value</p>
             </CardContent>
           </Card>
 
@@ -141,8 +174,8 @@ const Dashboard = () => {
         <div className="grid gap-3 md:grid-cols-2">
           <Card className="shadow-card">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Stock Movement</CardTitle>
-              <CardDescription className="text-xs">Monthly purchases vs sales</CardDescription>
+              <CardTitle className="text-base">Transaction Values</CardTitle>
+              <CardDescription className="text-xs">Monthly purchase vs sales amounts (ETB)</CardDescription>
             </CardHeader>
             <CardContent className="pt-2">
               <ResponsiveContainer width="100%" height={250}>
@@ -161,8 +194,8 @@ const Dashboard = () => {
 
           <Card className="shadow-card">
             <CardHeader className="pb-2">
-              <CardTitle className="text-base">Trend Analysis</CardTitle>
-              <CardDescription className="text-xs">6-month stock trends</CardDescription>
+              <CardTitle className="text-base">Transaction Trends</CardTitle>
+              <CardDescription className="text-xs">6-month transaction value trends</CardDescription>
             </CardHeader>
             <CardContent className="pt-2">
               <ResponsiveContainer width="100%" height={250}>

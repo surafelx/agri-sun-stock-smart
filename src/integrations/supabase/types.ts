@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      categories: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      subcategories: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcategories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_log: {
         Row: {
           action: string
@@ -46,7 +99,8 @@ export type Database = {
       }
       items: {
         Row: {
-          category: string
+          category_id: string | null
+          cost_price: number
           created_at: string
           created_by: string | null
           description: string | null
@@ -56,12 +110,14 @@ export type Database = {
           parameters: Json | null
           quantity: number
           sku: string
+          subcategory_id: string | null
           supplier: string | null
           unit_price: number
           updated_at: string
         }
         Insert: {
-          category: string
+          category_id?: string | null
+          cost_price?: number
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -71,12 +127,14 @@ export type Database = {
           parameters?: Json | null
           quantity?: number
           sku: string
+          subcategory_id?: string | null
           supplier?: string | null
           unit_price?: number
           updated_at?: string
         }
         Update: {
-          category?: string
+          category_id?: string | null
+          cost_price?: number
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -86,11 +144,27 @@ export type Database = {
           parameters?: Json | null
           quantity?: number
           sku?: string
+          subcategory_id?: string | null
           supplier?: string | null
           unit_price?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "items_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -121,6 +195,7 @@ export type Database = {
           created_at: string
           id: string
           item_id: string
+          profit: number
           quantity: number
           total_price: number
           transaction_id: string
@@ -130,6 +205,7 @@ export type Database = {
           created_at?: string
           id?: string
           item_id: string
+          profit?: number
           quantity: number
           total_price: number
           transaction_id: string
@@ -139,6 +215,7 @@ export type Database = {
           created_at?: string
           id?: string
           item_id?: string
+          profit?: number
           quantity?: number
           total_price?: number
           transaction_id?: string

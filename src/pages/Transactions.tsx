@@ -29,7 +29,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, ShoppingCart, TrendingUp, Trash2 } from "lucide-react";
+import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import jsPDF from 'jspdf';
+import * as XLSX from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 
@@ -42,16 +45,38 @@ interface Transaction {
   total_amount: number;
 }
 
+interface Category {
+  id: string;
+  name: string;
+}
+
+interface Subcategory {
+  id: string;
+  name: string;
+  category_id: string;
+}
+
 interface Item {
   id: string;
   name: string;
   sku: string;
   unit_price: number;
+  category_id: string | null;
+  subcategory_id: string | null;
+  categories?: {
+    name: string;
+  };
+  subcategories?: {
+    name: string;
+  };
 }
 
 const Transactions = () => {
+  const navigate = useNavigate();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [items, setItems] = useState<Item[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const { toast } = useToast();
@@ -62,18 +87,20 @@ const Transactions = () => {
     customerSupplier: string;
     contact: string;
     notes: string;
-    items: Array<{ itemId: string; quantity: string; unitPrice: string }>;
+    items: Array<{ categoryId: string; subcategoryId: string; itemId: string; quantity: string; unitPrice: string }>;
   }>({
     type: "purchase",
     reference: "",
     customerSupplier: "",
     contact: "",
     notes: "",
-    items: [{ itemId: "", quantity: "", unitPrice: "" }],
+    items: [{ categoryId: "", subcategoryId: "", itemId: "", quantity: "", unitPrice: "" }],
   });
 
   useEffect(() => {
     fetchTransactions();
+    fetchCategories();
+    fetchSubcategories();
     fetchItems();
   }, []);
 
@@ -97,11 +124,39 @@ const Transactions = () => {
     }
   };
 
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (error: any) {
+      console.error('Error fetching categories:', error);
+    }
+  };
+
+  const fetchSubcategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('subcategories')
+        .select('*')
+        .order('name');
+
+      if (error) throw error;
+      setSubcategories(data || []);
+    } catch (error: any) {
+      console.error('Error fetching subcategories:', error);
+    }
+  };
+
   const fetchItems = async () => {
     try {
       const { data, error } = await supabase
         .from('items')
-        .select('id, name, sku, unit_price');
+        .select('id, name, sku, unit_price, category_id, subcategory_id, categories(name), subcategories(name)');
 
       if (error) throw error;
       setItems(data || []);
@@ -112,10 +167,30 @@ const Transactions = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
+
+      // Validate stock levels for sales
+      if (formData.type === 'sale') {
+        for (const item of formData.items) {
+          if (item.itemId && item.quantity) {
+            const { data: itemData, error: itemError } = await supabase
+              .from('items')
+              .select('quantity, name')
+              .eq('id', item.itemId)
+              .single();
+
+            if (itemError) throw itemError;
+
+            const requestedQty = parseFloat(item.quantity);
+            if (requestedQty > itemData.quantity) {
+              throw new Error(`Insufficient stock for ${itemData.name}. Available: ${itemData.quantity}, Requested: ${requestedQty}`);
+            }
+          }
+        }
+      }
 
       const totalAmount = formData.items.reduce((sum, item) => {
         const qty = parseFloat(item.quantity) || 0;
@@ -181,14 +256,14 @@ const Transactions = () => {
       customerSupplier: "",
       contact: "",
       notes: "",
-      items: [{ itemId: "", quantity: "", unitPrice: "" }],
+      items: [{ categoryId: "", subcategoryId: "", itemId: "", quantity: "", unitPrice: "" }],
     });
   };
 
   const addItemRow = () => {
     setFormData({
       ...formData,
-      items: [...formData.items, { itemId: "", quantity: "", unitPrice: "" }],
+      items: [...formData.items, { categoryId: "", subcategoryId: "", itemId: "", quantity: "", unitPrice: "" }],
     });
   };
 
@@ -200,7 +275,20 @@ const Transactions = () => {
   const updateItem = (index: number, field: string, value: string) => {
     const newItems = [...formData.items];
     newItems[index] = { ...newItems[index], [field]: value };
-    
+
+    // Reset subcategory and item when category changes
+    if (field === 'categoryId') {
+      newItems[index].subcategoryId = "";
+      newItems[index].itemId = "";
+      newItems[index].unitPrice = "";
+    }
+
+    // Reset item when subcategory changes
+    if (field === 'subcategoryId') {
+      newItems[index].itemId = "";
+      newItems[index].unitPrice = "";
+    }
+
     // Auto-fill unit price when item is selected
     if (field === 'itemId') {
       const selectedItem = items.find(item => item.id === value);
@@ -208,7 +296,7 @@ const Transactions = () => {
         newItems[index].unitPrice = selectedItem.unit_price.toString();
       }
     }
-    
+
     setFormData({ ...formData, items: newItems });
   };
 
@@ -220,6 +308,142 @@ const Transactions = () => {
         return <TrendingUp className="h-4 w-4" />;
       default:
         return null;
+    }
+  };
+
+  const generatePDF = async (transactionId: string) => {
+    try {
+      // Fetch transaction with items
+      const { data: transaction, error: transError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('id', transactionId)
+        .single();
+
+      if (transError) throw transError;
+
+      const { data: transactionItems, error: itemsError } = await supabase
+        .from('transaction_items')
+        .select('*, items(name, sku)')
+        .eq('transaction_id', transactionId);
+
+      if (itemsError) throw itemsError;
+
+      // Create PDF
+      const doc = new jsPDF();
+
+      // Header
+      doc.setFontSize(20);
+      doc.text('INVOICE', 105, 20, { align: 'center' });
+
+      doc.setFontSize(12);
+      doc.text(`Transaction Type: ${transaction.transaction_type.toUpperCase()}`, 20, 40);
+      doc.text(`Reference: ${transaction.reference_number}`, 20, 50);
+      doc.text(`Date: ${new Date(transaction.transaction_date).toLocaleDateString()}`, 20, 60);
+      doc.text(`${transaction.transaction_type === 'purchase' ? 'Supplier' : 'Customer'}: ${transaction.customer_supplier_name}`, 20, 70);
+
+      if (transaction.customer_supplier_contact) {
+        doc.text(`Contact: ${transaction.customer_supplier_contact}`, 20, 80);
+      }
+
+      // Items table
+      let y = 100;
+      doc.setFontSize(10);
+      doc.text('Item', 20, y);
+      doc.text('Qty', 120, y);
+      doc.text('Unit Price', 140, y);
+      doc.text('Total', 170, y);
+
+      y += 10;
+      doc.line(20, y, 190, y);
+      y += 5;
+
+      transactionItems?.forEach((item: any) => {
+        doc.text(item.items?.name || 'Unknown', 20, y);
+        doc.text(item.quantity.toString(), 120, y);
+        doc.text(`ETB ${item.unit_price.toFixed(2)}`, 140, y);
+        doc.text(`ETB ${item.total_price.toFixed(2)}`, 170, y);
+        y += 10;
+      });
+
+      y += 10;
+      doc.line(20, y, 190, y);
+      y += 10;
+      doc.setFontSize(12);
+      doc.text(`Total Amount: ETB ${transaction.total_amount.toFixed(2)}`, 140, y);
+
+      // Save PDF
+      doc.save(`invoice-${transaction.reference_number}.pdf`);
+
+      toast({
+        title: "Success",
+        description: "PDF generated successfully",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error generating PDF",
+        description: error.message,
+      });
+    }
+  };
+
+  const exportToExcel = async () => {
+    try {
+      // Fetch all transactions with items
+      const { data: transactions, error: transError } = await supabase
+        .from('transactions')
+        .select('*')
+        .order('transaction_date', { ascending: false });
+
+      if (transError) throw transError;
+
+      const exportData = [];
+
+      for (const transaction of transactions || []) {
+        const { data: transactionItems, error: itemsError } = await supabase
+          .from('transaction_items')
+          .select('*, items(name, sku)')
+          .eq('transaction_id', transaction.id);
+
+        if (itemsError) continue;
+
+        transactionItems?.forEach((item: any) => {
+          exportData.push({
+            'Transaction Type': transaction.transaction_type,
+            'Reference Number': transaction.reference_number,
+            'Date': new Date(transaction.transaction_date).toLocaleDateString(),
+            'Customer/Supplier': transaction.customer_supplier_name,
+            'Contact': transaction.customer_supplier_contact || '',
+            'Item Name': item.items?.name || '',
+            'SKU': item.items?.sku || '',
+            'Quantity': item.quantity,
+            'Unit Price': item.unit_price,
+            'Total Price': item.total_price,
+            'Profit': item.profit || 0,
+            'Notes': transaction.notes || '',
+          });
+        });
+      }
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+
+      // Save file
+      XLSX.writeFile(wb, 'transactions-export.xlsx');
+
+      toast({
+        title: "Success",
+        description: "Excel file exported successfully",
+      });
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error exporting to Excel",
+        description: error.message,
+      });
     }
   };
 
@@ -323,8 +547,44 @@ const Transactions = () => {
                   
                   <div className="space-y-3">
                     {formData.items.map((item, index) => (
-                      <div key={index} className="flex gap-2 items-end">
-                        <div className="flex-1 space-y-2">
+                      <div key={index} className="grid grid-cols-5 gap-2 items-end">
+                        <div className="space-y-2">
+                          <Label>Category</Label>
+                          <Select
+                            value={item.categoryId}
+                            onValueChange={(value) => updateItem(index, 'categoryId', value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categories.map((category) => (
+                                <SelectItem key={category.id} value={category.id}>
+                                  {category.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Subcategory</Label>
+                          <Select
+                            value={item.subcategoryId}
+                            onValueChange={(value) => updateItem(index, 'subcategoryId', value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Subcategory" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {subcategories.filter(sub => !item.categoryId || sub.category_id === item.categoryId).map((subcategory) => (
+                                <SelectItem key={subcategory.id} value={subcategory.id}>
+                                  {subcategory.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
                           <Label>Item</Label>
                           <Select
                             value={item.itemId}
@@ -334,15 +594,20 @@ const Transactions = () => {
                               <SelectValue placeholder="Select item" />
                             </SelectTrigger>
                             <SelectContent>
-                              {items.map((invItem) => (
+                              {items.filter(invItem => {
+                                const matchesCategory = !item.categoryId || invItem.category_id === item.categoryId;
+                                const matchesSubcategory = !item.subcategoryId || invItem.subcategory_id === item.subcategoryId;
+                                const hasStock = formData.type !== 'sale' || invItem.quantity > 0;
+                                return matchesCategory && matchesSubcategory && hasStock;
+                              }).map((invItem) => (
                                 <SelectItem key={invItem.id} value={invItem.id}>
-                                  {invItem.name} ({invItem.sku})
+                                  {invItem.name} ({invItem.sku}) - {invItem.quantity} in stock
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="w-32 space-y-2">
+                        <div className="space-y-2">
                           <Label>Quantity</Label>
                           <Input
                             type="number"
@@ -352,7 +617,7 @@ const Transactions = () => {
                             placeholder="0"
                           />
                         </div>
-                        <div className="w-32 space-y-2">
+                        <div className="space-y-2">
                           <Label>Unit Price</Label>
                           <Input
                             type="number"
@@ -361,16 +626,17 @@ const Transactions = () => {
                             onChange={(e) => updateItem(index, 'unitPrice', e.target.value)}
                             placeholder="0.00"
                           />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeItemRow(index)}
+                            disabled={formData.items.length === 1}
+                            className="mt-1"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeItemRow(index)}
-                          disabled={formData.items.length === 1}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
                       </div>
                     ))}
                   </div>
@@ -405,6 +671,12 @@ const Transactions = () => {
               <CardDescription className="text-sm">All purchases and sales transactions</CardDescription>
             </CardHeader>
             <CardContent className="pt-0">
+              <div className="flex justify-end mb-4">
+                <Button variant="outline" size="sm" onClick={exportToExcel}>
+                  <Download className="mr-1.5 h-4 w-4" />
+                  Export to Excel
+                </Button>
+              </div>
               {transactions.length === 0 ? (
                 <div className="text-center py-8">
                   <ShoppingCart className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
@@ -421,6 +693,7 @@ const Transactions = () => {
                         <TableHead className="h-9 text-xs">Customer/Supplier</TableHead>
                         <TableHead className="h-9 text-xs">Date</TableHead>
                         <TableHead className="h-9 text-xs text-right">Amount</TableHead>
+                        <TableHead className="h-9 text-xs text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -435,11 +708,29 @@ const Transactions = () => {
                               {transaction.transaction_type.charAt(0).toUpperCase() + transaction.transaction_type.slice(1)}
                             </Badge>
                           </TableCell>
-                          <TableCell className="font-mono text-xs py-2">{transaction.reference_number}</TableCell>
+                          <TableCell className="font-mono text-xs py-2">
+                            <button
+                              onClick={() => navigate(`/transactions/${transaction.id}`)}
+                              className="hover:text-primary hover:underline"
+                            >
+                              {transaction.reference_number}
+                            </button>
+                          </TableCell>
                           <TableCell className="text-sm py-2">{transaction.customer_supplier_name}</TableCell>
                           <TableCell className="text-sm py-2">{new Date(transaction.transaction_date).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right font-semibold text-sm py-2">
                             ETB {transaction.total_amount.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-right py-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => generatePDF(transaction.id)}
+                              className="h-7 w-7 p-0"
+                              title="Generate PDF"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}

@@ -7,7 +7,9 @@ import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import Items from "./pages/Items";
 import StockCard from "./pages/StockCard";
+import StockBalance from "./pages/StockBalance";
 import Transactions from "./pages/Transactions";
+import TransactionDetail from "./pages/TransactionDetail";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
 
@@ -24,7 +26,9 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/items" element={<Items />} />
           <Route path="/stock-card/:itemId" element={<StockCard />} />
+          <Route path="/stock-balance" element={<StockBalance />} />
           <Route path="/transactions" element={<Transactions />} />
+          <Route path="/transactions/:transactionId" element={<TransactionDetail />} />
           <Route path="/admin" element={<Admin />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
