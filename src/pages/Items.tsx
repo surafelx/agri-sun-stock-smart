@@ -207,52 +207,54 @@ const Items = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Stock Cards</h2>
-            <p className="text-muted-foreground">Manage your solar equipment inventory</p>
+            <h2 className="text-2xl font-bold tracking-tight">Stock Cards</h2>
+            <p className="text-sm text-muted-foreground">Manage your solar equipment inventory</p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open);
             if (!open) resetForm();
           }}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
+              <Button size="sm">
+                <Plus className="mr-1.5 h-4 w-4" />
                 Add Item
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>{editingItem ? "Edit Item" : "Add New Item"}</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-lg">{editingItem ? "Edit Item" : "Add New Item"}</DialogTitle>
+                <DialogDescription className="text-sm">
                   {editingItem ? "Update the item details below" : "Enter the details for the new inventory item"}
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Item Name *</Label>
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="name" className="text-sm">Item Name *</Label>
                     <Input
                       id="name"
                       value={formData.name}
                       onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                       required
+                      className="h-9"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="sku">SKU/Code *</Label>
+                  <div className="space-y-1">
+                    <Label htmlFor="sku" className="text-sm">SKU/Code *</Label>
                     <Input
                       id="sku"
                       value={formData.sku}
                       onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
                       required
+                      className="h-9"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label htmlFor="category">Category *</Label>
                     <Input
@@ -377,72 +379,76 @@ const Items = () => {
           </div>
         ) : (
           <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle>Inventory Items</CardTitle>
-              <CardDescription>All stock items in your inventory</CardDescription>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Inventory Items</CardTitle>
+              <CardDescription className="text-sm">All stock items in your inventory</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {items.length === 0 ? (
-                <div className="text-center py-12">
-                  <Package className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No items yet</h3>
-                  <p className="text-muted-foreground mb-4">Get started by adding your first inventory item</p>
+                <div className="text-center py-8">
+                  <Package className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+                  <h3 className="text-base font-semibold mb-1">No items yet</h3>
+                  <p className="text-sm text-muted-foreground mb-3">Get started by adding your first inventory item</p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>SKU</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Category</TableHead>
-                      <TableHead>Quantity</TableHead>
-                      <TableHead>Unit Price</TableHead>
-                      <TableHead>Total Value</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="font-mono text-sm">{item.sku}</TableCell>
-                        <TableCell className="font-medium">{item.name}</TableCell>
-                        <TableCell>{item.category}</TableCell>
-                        <TableCell>{item.quantity}</TableCell>
-                        <TableCell>ETB {item.unit_price}</TableCell>
-                        <TableCell>ETB {(item.quantity * item.unit_price).toFixed(2)}</TableCell>
-                        <TableCell>
-                          {item.quantity <= item.low_stock_threshold ? (
-                            <Badge variant="destructive" className="gap-1">
-                              <AlertTriangle className="h-3 w-3" />
-                              Low Stock
-                            </Badge>
-                          ) : (
-                            <Badge variant="secondary">In Stock</Badge>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEditDialog(item)}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(item.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </div>
-                        </TableCell>
+                <div className="border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="h-9 text-xs">SKU</TableHead>
+                        <TableHead className="h-9 text-xs">Name</TableHead>
+                        <TableHead className="h-9 text-xs">Category</TableHead>
+                        <TableHead className="h-9 text-xs">Quantity</TableHead>
+                        <TableHead className="h-9 text-xs">Unit Price</TableHead>
+                        <TableHead className="h-9 text-xs">Total Value</TableHead>
+                        <TableHead className="h-9 text-xs">Status</TableHead>
+                        <TableHead className="h-9 text-xs text-right">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {items.map((item) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="font-mono text-xs py-2">{item.sku}</TableCell>
+                          <TableCell className="font-medium text-sm py-2">{item.name}</TableCell>
+                          <TableCell className="text-sm py-2">{item.category}</TableCell>
+                          <TableCell className="text-sm py-2">{item.quantity}</TableCell>
+                          <TableCell className="text-sm py-2">ETB {item.unit_price}</TableCell>
+                          <TableCell className="text-sm py-2">ETB {(item.quantity * item.unit_price).toFixed(2)}</TableCell>
+                          <TableCell className="py-2">
+                            {item.quantity <= item.low_stock_threshold ? (
+                              <Badge variant="destructive" className="gap-1 text-xs">
+                                <AlertTriangle className="h-3 w-3" />
+                                Low Stock
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="text-xs">In Stock</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right py-2">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditDialog(item)}
+                                className="h-7 w-7 p-0"
+                              >
+                                <Edit className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDelete(item.id)}
+                                className="h-7 w-7 p-0"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
