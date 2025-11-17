@@ -23,7 +23,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Package, AlertTriangle, Edit, Trash2 } from "lucide-react";
+import { Plus, Package, AlertTriangle, Edit, Trash2, FileText } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 
 interface Item {
@@ -40,6 +41,7 @@ interface Item {
 }
 
 const Items = () => {
+  const navigate = useNavigate();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -399,8 +401,6 @@ const Items = () => {
                         <TableHead className="h-9 text-xs">Name</TableHead>
                         <TableHead className="h-9 text-xs">Category</TableHead>
                         <TableHead className="h-9 text-xs">Quantity</TableHead>
-                        <TableHead className="h-9 text-xs">Unit Price</TableHead>
-                        <TableHead className="h-9 text-xs">Total Value</TableHead>
                         <TableHead className="h-9 text-xs">Status</TableHead>
                         <TableHead className="h-9 text-xs text-right">Actions</TableHead>
                       </TableRow>
@@ -409,11 +409,16 @@ const Items = () => {
                       {items.map((item) => (
                         <TableRow key={item.id}>
                           <TableCell className="font-mono text-xs py-2">{item.sku}</TableCell>
-                          <TableCell className="font-medium text-sm py-2">{item.name}</TableCell>
+                          <TableCell className="font-medium text-sm py-2">
+                            <button 
+                              onClick={() => navigate(`/stock-card/${item.id}`)}
+                              className="hover:text-primary hover:underline text-left"
+                            >
+                              {item.name}
+                            </button>
+                          </TableCell>
                           <TableCell className="text-sm py-2">{item.category}</TableCell>
-                          <TableCell className="text-sm py-2">{item.quantity}</TableCell>
-                          <TableCell className="text-sm py-2">ETB {item.unit_price}</TableCell>
-                          <TableCell className="text-sm py-2">ETB {(item.quantity * item.unit_price).toFixed(2)}</TableCell>
+                          <TableCell className="text-sm py-2 font-semibold">{item.quantity}</TableCell>
                           <TableCell className="py-2">
                             {item.quantity <= item.low_stock_threshold ? (
                               <Badge variant="destructive" className="gap-1 text-xs">
@@ -429,8 +434,18 @@ const Items = () => {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                onClick={() => navigate(`/stock-card/${item.id}`)}
+                                className="h-7 w-7 p-0"
+                                title="View Stock Card"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
                                 onClick={() => openEditDialog(item)}
                                 className="h-7 w-7 p-0"
+                                title="Edit Item"
                               >
                                 <Edit className="h-3.5 w-3.5" />
                               </Button>
@@ -439,6 +454,7 @@ const Items = () => {
                                 size="sm"
                                 onClick={() => handleDelete(item.id)}
                                 className="h-7 w-7 p-0"
+                                title="Delete Item"
                               >
                                 <Trash2 className="h-3.5 w-3.5 text-destructive" />
                               </Button>
