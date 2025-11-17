@@ -84,96 +84,96 @@ const Dashboard = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-          <p className="text-muted-foreground">Welcome to your inventory management system</p>
+          <h2 className="text-2xl font-bold tracking-tight">Dashboard</h2>
+          <p className="text-sm text-muted-foreground">Welcome to your inventory management system</p>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <Card className="shadow-card hover:shadow-glow transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
               <CardTitle className="text-sm font-medium">Total Stock Items</CardTitle>
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.totalItems}</div>
-              <p className="text-xs text-muted-foreground">Unique products in inventory</p>
+            <CardContent className="pt-1">
+              <div className="text-xl font-bold">{stats.totalItems}</div>
+              <p className="text-[10px] text-muted-foreground">Unique products in inventory</p>
             </CardContent>
           </Card>
 
           <Card className="shadow-card hover:shadow-glow transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
               <CardTitle className="text-sm font-medium">Total Inventory Value</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">ETB {stats.totalValue.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Current stock value</p>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-card hover:shadow-glow transition-shadow border-destructive/50">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-destructive" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-destructive">{stats.lowStockCount}</div>
-              <p className="text-xs text-muted-foreground">Items below threshold</p>
+            <CardContent className="pt-1">
+              <div className="text-xl font-bold">${stats.totalValue.toFixed(2)}</div>
+              <p className="text-[10px] text-muted-foreground">Current stock value</p>
             </CardContent>
           </Card>
 
           <Card className="shadow-card hover:shadow-glow transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Recent Transactions</CardTitle>
-              <TrendingUp className="h-4 w-4 text-secondary" />
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+              <CardTitle className="text-sm font-medium">Low Stock Alerts</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-destructive" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.recentTransactions}</div>
-              <p className="text-xs text-muted-foreground">Last 10 transactions</p>
+            <CardContent className="pt-1">
+              <div className="text-xl font-bold text-destructive">{stats.lowStockCount}</div>
+              <p className="text-[10px] text-muted-foreground">Items need reordering</p>
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-card hover:shadow-glow transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1">
+              <CardTitle className="text-sm font-medium">Recent Transactions</CardTitle>
+              <TrendingUp className="h-4 w-4 text-success" />
+            </CardHeader>
+            <CardContent className="pt-1">
+              <div className="text-xl font-bold">{stats.recentTransactions}</div>
+              <p className="text-[10px] text-muted-foreground">Last 10 transactions</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Charts */}
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-3 md:grid-cols-2">
           <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle>Purchases vs Sales</CardTitle>
-              <CardDescription>Monthly comparison for the last 6 months</CardDescription>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Stock Movement</CardTitle>
+              <CardDescription className="text-xs">Monthly purchases vs sales</CardDescription>
             </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
+            <CardContent className="pt-2">
+              <ResponsiveContainer width="100%" height={250}>
                 <BarChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Bar dataKey="purchases" fill="hsl(var(--chart-1))" />
-                  <Bar dataKey="sales" fill="hsl(var(--chart-2))" />
+                  <Bar dataKey="purchases" fill="hsl(var(--primary))" name="Purchases" />
+                  <Bar dataKey="sales" fill="hsl(var(--chart-2))" name="Sales" />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
           </Card>
 
           <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle>Stock Movement Trend</CardTitle>
-              <CardDescription>Inventory flow over time</CardDescription>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Trend Analysis</CardTitle>
+              <CardDescription className="text-xs">6-month stock trends</CardDescription>
             </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
+            <CardContent className="pt-2">
+              <ResponsiveContainer width="100%" height={250}>
                 <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="name" />
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="purchases" stroke="hsl(var(--chart-1))" strokeWidth={2} />
-                  <Line type="monotone" dataKey="sales" stroke="hsl(var(--chart-2))" strokeWidth={2} />
+                  <Line type="monotone" dataKey="purchases" stroke="hsl(var(--primary))" name="Purchases" />
+                  <Line type="monotone" dataKey="sales" stroke="hsl(var(--chart-2))" name="Sales" />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>

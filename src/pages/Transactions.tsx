@@ -225,33 +225,33 @@ const Transactions = () => {
 
   return (
     <Layout>
-      <div className="space-y-6">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold tracking-tight">Transactions</h2>
-            <p className="text-muted-foreground">Record purchases and sales</p>
+            <h2 className="text-2xl font-bold tracking-tight">Transactions</h2>
+            <p className="text-sm text-muted-foreground">Record purchases and sales</p>
           </div>
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open);
             if (!open) resetForm();
           }}>
             <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
+              <Button size="sm">
+                <Plus className="mr-1.5 h-4 w-4" />
                 New Transaction
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Create Transaction</DialogTitle>
-                <DialogDescription>
+                <DialogTitle className="text-lg">Create Transaction</DialogTitle>
+                <DialogDescription className="text-sm">
                   Record a new purchase or sale transaction
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="type">Transaction Type *</Label>
+              <form onSubmit={handleSubmit} className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="type" className="text-sm">Transaction Type *</Label>
                     <Select
                       value={formData.type}
                       onValueChange={(value: 'purchase' | 'sale' | 'adjustment') => 
@@ -400,50 +400,52 @@ const Transactions = () => {
           </div>
         ) : (
           <Card className="shadow-card">
-            <CardHeader>
-              <CardTitle>Transaction History</CardTitle>
-              <CardDescription>All purchases and sales transactions</CardDescription>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Transaction History</CardTitle>
+              <CardDescription className="text-sm">All purchases and sales transactions</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {transactions.length === 0 ? (
-                <div className="text-center py-12">
-                  <ShoppingCart className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">No transactions yet</h3>
-                  <p className="text-muted-foreground mb-4">Create your first transaction to track inventory movement</p>
+                <div className="text-center py-8">
+                  <ShoppingCart className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+                  <h3 className="text-base font-semibold mb-1">No transactions yet</h3>
+                  <p className="text-sm text-muted-foreground mb-3">Create your first transaction to track inventory movement</p>
                 </div>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Reference</TableHead>
-                      <TableHead>Customer/Supplier</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead className="text-right">Amount</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {transactions.map((transaction) => (
-                      <TableRow key={transaction.id}>
-                        <TableCell>
-                          <Badge
-                            variant={transaction.transaction_type === 'purchase' ? 'secondary' : 'default'}
-                            className="gap-1"
-                          >
-                            {getTransactionIcon(transaction.transaction_type)}
-                            {transaction.transaction_type.charAt(0).toUpperCase() + transaction.transaction_type.slice(1)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="font-mono text-sm">{transaction.reference_number}</TableCell>
-                        <TableCell>{transaction.customer_supplier_name}</TableCell>
-                        <TableCell>{new Date(transaction.transaction_date).toLocaleDateString()}</TableCell>
-                        <TableCell className="text-right font-semibold">
-                          ETB {transaction.total_amount.toLocaleString()}
-                        </TableCell>
+                <div className="border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="h-9 text-xs">Type</TableHead>
+                        <TableHead className="h-9 text-xs">Reference</TableHead>
+                        <TableHead className="h-9 text-xs">Customer/Supplier</TableHead>
+                        <TableHead className="h-9 text-xs">Date</TableHead>
+                        <TableHead className="h-9 text-xs text-right">Amount</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {transactions.map((transaction) => (
+                        <TableRow key={transaction.id}>
+                          <TableCell className="py-2">
+                            <Badge
+                              variant={transaction.transaction_type === 'purchase' ? 'secondary' : 'default'}
+                              className="gap-1 text-xs"
+                            >
+                              {getTransactionIcon(transaction.transaction_type)}
+                              {transaction.transaction_type.charAt(0).toUpperCase() + transaction.transaction_type.slice(1)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="font-mono text-xs py-2">{transaction.reference_number}</TableCell>
+                          <TableCell className="text-sm py-2">{transaction.customer_supplier_name}</TableCell>
+                          <TableCell className="text-sm py-2">{new Date(transaction.transaction_date).toLocaleDateString()}</TableCell>
+                          <TableCell className="text-right font-semibold text-sm py-2">
+                            ETB {transaction.total_amount.toLocaleString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               )}
             </CardContent>
           </Card>
