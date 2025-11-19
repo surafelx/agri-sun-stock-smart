@@ -108,11 +108,10 @@ export type Database = {
           low_stock_threshold: number | null
           name: string
           parameters: Json | null
-          quantity: number
           sku: string
           subcategory_id: string | null
           supplier: string | null
-          unit_price: number
+          uom: string | null
           updated_at: string
         }
         Insert: {
@@ -125,11 +124,10 @@ export type Database = {
           low_stock_threshold?: number | null
           name: string
           parameters?: Json | null
-          quantity?: number
           sku: string
           subcategory_id?: string | null
           supplier?: string | null
-          unit_price?: number
+          uom?: string | null
           updated_at?: string
         }
         Update: {
@@ -142,11 +140,10 @@ export type Database = {
           low_stock_threshold?: number | null
           name?: string
           parameters?: Json | null
-          quantity?: number
           sku?: string
           subcategory_id?: string | null
           supplier?: string | null
-          unit_price?: number
+          uom?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -309,6 +306,12 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      get_current_stock: {
+        Args: {
+          item_id_param: string
+        }
+        Returns: number
       }
     }
     Enums: {

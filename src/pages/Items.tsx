@@ -47,11 +47,10 @@ interface Item {
   subcategory_id: string | null;
   cost_price: number;
   description: string;
-  quantity: number;
-  unit_price: number;
   supplier: string;
   parameters: any;
   low_stock_threshold: number;
+  uom: string | null;
   categories?: {
     name: string;
   };
@@ -76,10 +75,9 @@ const Items = () => {
     category_id: "",
     subcategory_id: "",
     description: "",
-    quantity: "",
-    unit_price: "",
     supplier: "",
     low_stock_threshold: "10",
+    uom: "",
     wattage: "",
     voltage: "",
     capacity: "",
@@ -160,10 +158,9 @@ const Items = () => {
         category_id: formData.category_id || null,
         subcategory_id: formData.subcategory_id || null,
         description: formData.description,
-        quantity: parseFloat(formData.quantity),
-        unit_price: parseFloat(formData.unit_price),
         supplier: formData.supplier,
         low_stock_threshold: parseFloat(formData.low_stock_threshold),
+        uom: formData.uom || null,
         parameters: {
           wattage: formData.wattage,
           voltage: formData.voltage,
@@ -241,10 +238,9 @@ const Items = () => {
       category_id: "",
       subcategory_id: "",
       description: "",
-      quantity: "",
-      unit_price: "",
       supplier: "",
       low_stock_threshold: "10",
+      uom: "",
       wattage: "",
       voltage: "",
       capacity: "",
@@ -260,10 +256,9 @@ const Items = () => {
       category_id: item.category_id || "",
       subcategory_id: item.subcategory_id || "",
       description: item.description || "",
-      quantity: item.quantity.toString(),
-      unit_price: item.unit_price.toString(),
       supplier: item.supplier || "",
       low_stock_threshold: item.low_stock_threshold.toString(),
+      uom: item.uom || "",
       wattage: item.parameters?.wattage || "",
       voltage: item.parameters?.voltage || "",
       capacity: item.parameters?.capacity || "",
@@ -373,27 +368,14 @@ const Items = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity *</Label>
+                    <Label htmlFor="uom">Unit of Measure</Label>
                     <Input
-                      id="quantity"
-                      type="number"
-                      step="0.01"
-                      value={formData.quantity}
-                      onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="unit_price">Unit Price (ETB) *</Label>
-                    <Input
-                      id="unit_price"
-                      type="number"
-                      step="0.01"
-                      value={formData.unit_price}
-                      onChange={(e) => setFormData({ ...formData, unit_price: e.target.value })}
-                      required
+                      id="uom"
+                      value={formData.uom}
+                      onChange={(e) => setFormData({ ...formData, uom: e.target.value })}
+                      placeholder="e.g., Pieces, Kg, Liters"
                     />
                   </div>
                   <div className="space-y-2">
@@ -487,8 +469,7 @@ const Items = () => {
                         <TableHead className="h-9 text-xs">Name</TableHead>
                         <TableHead className="h-9 text-xs">Category</TableHead>
                         <TableHead className="h-9 text-xs">Subcategory</TableHead>
-                        <TableHead className="h-9 text-xs">Quantity</TableHead>
-                        <TableHead className="h-9 text-xs">Status</TableHead>
+                        <TableHead className="h-9 text-xs">UOM</TableHead>
                         <TableHead className="h-9 text-xs text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -497,7 +478,7 @@ const Items = () => {
                         <TableRow key={item.id}>
                           <TableCell className="font-mono text-xs py-2">{item.sku}</TableCell>
                           <TableCell className="font-medium text-sm py-2">
-                            <button 
+                            <button
                               onClick={() => navigate(`/stock-card/${item.id}`)}
                               className="hover:text-primary hover:underline text-left"
                             >
@@ -506,17 +487,7 @@ const Items = () => {
                           </TableCell>
                           <TableCell className="text-sm py-2">{item.categories?.name || "N/A"}</TableCell>
                           <TableCell className="text-sm py-2">{item.subcategories?.name || "N/A"}</TableCell>
-                          <TableCell className="text-sm py-2 font-semibold">{item.quantity}</TableCell>
-                          <TableCell className="py-2">
-                            {item.quantity <= item.low_stock_threshold ? (
-                              <Badge variant="destructive" className="gap-1 text-xs">
-                                <AlertTriangle className="h-3 w-3" />
-                                Low Stock
-                              </Badge>
-                            ) : (
-                              <Badge variant="secondary" className="text-xs">In Stock</Badge>
-                            )}
-                          </TableCell>
+                          <TableCell className="text-sm py-2">{item.uom || "N/A"}</TableCell>
                           <TableCell className="text-right py-2">
                             <div className="flex justify-end gap-1">
                               <Button

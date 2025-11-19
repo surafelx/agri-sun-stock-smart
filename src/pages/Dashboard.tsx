@@ -35,11 +35,42 @@ const Dashboard = () => {
 
       if (itemsError) throw itemsError;
 
-      // Calculate stats
-      const totalValue = items?.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.unit_price)), 0) || 0;
-      const totalCost = items?.reduce((sum, item) => sum + (Number(item.quantity) * Number(item.cost_price)), 0) || 0;
-      const lowStock = items?.filter(item => Number(item.quantity) > 0 && Number(item.quantity) <= Number(item.low_stock_threshold)) || [];
-      const outOfStock = items?.filter(item => Number(item.quantity) === 0) || [];
+      // Calculate current stock and stats for each item
+      let totalValue = 0;
+      let totalCost = 0;
+      let lowStockCount = 0;
+
+      for (const item of items || []) {
+        // Get current stock
+        const { data: currentStock, error: stockError } = await supabase
+          .rpc('get_current_stock', { item_id_param: item.id });
+
+        if (stockError) {
+          console.error('Error getting stock for item', item.id, stockError);
+          continue;
+        }
+
+        // Get last transaction's unit_price for valuation
+        const { data: lastTransaction, error: transError } = await supabase
+          .from('transaction_items')
+          .select('unit_price')
+          .eq('item_id', item.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!transError && lastTransaction) {
+          totalValue += currentStock * lastTransaction.unit_price;
+        }
+
+        totalCost += currentStock * item.cost_price;
+
+        if (currentStock === 0) {
+          lowStockCount++;
+        } else if (currentStock <= item.low_stock_threshold) {
+          lowStockCount++;
+        }
+      }
 
       // Fetch recent transactions
       const { data: transactions, error: transError } = await supabase
@@ -53,7 +84,7 @@ const Dashboard = () => {
       setStats({
         totalItems: items?.length || 0,
         totalValue,
-        lowStockCount: lowStock.length + outOfStock.length,
+        lowStockCount,
         recentTransactions: transactions?.length || 0,
       });
 

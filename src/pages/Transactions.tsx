@@ -60,7 +60,6 @@ interface Item {
   id: string;
   name: string;
   sku: string;
-  unit_price: number;
   category_id: string | null;
   subcategory_id: string | null;
   categories?: {
@@ -156,7 +155,7 @@ const Transactions = () => {
     try {
       const { data, error } = await supabase
         .from('items')
-        .select('id, name, sku, unit_price, category_id, subcategory_id, categories(name), subcategories(name)');
+        .select('id, name, sku, category_id, subcategory_id, categories(name), subcategories(name)');
 
       if (error) throw error;
       setItems(data || []);
@@ -176,17 +175,24 @@ const Transactions = () => {
       if (formData.type === 'sale') {
         for (const item of formData.items) {
           if (item.itemId && item.quantity) {
+            // Get current stock using the database function
+            const { data: currentStock, error: stockError } = await supabase
+              .rpc('get_current_stock', { item_id_param: item.itemId });
+
+            if (stockError) throw stockError;
+
+            // Get item name
             const { data: itemData, error: itemError } = await supabase
               .from('items')
-              .select('quantity, name')
+              .select('name')
               .eq('id', item.itemId)
               .single();
 
             if (itemError) throw itemError;
 
             const requestedQty = parseFloat(item.quantity);
-            if (requestedQty > itemData.quantity) {
-              throw new Error(`Insufficient stock for ${itemData.name}. Available: ${itemData.quantity}, Requested: ${requestedQty}`);
+            if (requestedQty > currentStock) {
+              throw new Error(`Insufficient stock for ${itemData.name}. Available: ${currentStock}, Requested: ${requestedQty}`);
             }
           }
         }
@@ -289,13 +295,7 @@ const Transactions = () => {
       newItems[index].unitPrice = "";
     }
 
-    // Auto-fill unit price when item is selected
-    if (field === 'itemId') {
-      const selectedItem = items.find(item => item.id === value);
-      if (selectedItem) {
-        newItems[index].unitPrice = selectedItem.unit_price.toString();
-      }
-    }
+    // Note: unit_price is no longer stored in items, user must enter manually
 
     setFormData({ ...formData, items: newItems });
   };
@@ -597,11 +597,10 @@ const Transactions = () => {
                               {items.filter(invItem => {
                                 const matchesCategory = !item.categoryId || invItem.category_id === item.categoryId;
                                 const matchesSubcategory = !item.subcategoryId || invItem.subcategory_id === item.subcategoryId;
-                                const hasStock = formData.type !== 'sale' || invItem.quantity > 0;
-                                return matchesCategory && matchesSubcategory && hasStock;
+                                return matchesCategory && matchesSubcategory;
                               }).map((invItem) => (
                                 <SelectItem key={invItem.id} value={invItem.id}>
-                                  {invItem.name} ({invItem.sku}) - {invItem.quantity} in stock
+                                  {invItem.name} ({invItem.sku})
                                 </SelectItem>
                               ))}
                             </SelectContent>

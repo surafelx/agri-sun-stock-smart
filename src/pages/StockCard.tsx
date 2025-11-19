@@ -14,8 +14,6 @@ interface Item {
   name: string;
   sku: string;
   category: string;
-  unit_price: number;
-  quantity: number;
   cost_price: number;
 }
 
@@ -191,20 +189,16 @@ const StockCard = () => {
                 <CardDescription className="text-sm">SKU: {item.sku} • Category: {item.category}</CardDescription>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold">{item.quantity}</div>
+                <div className="text-2xl font-bold">{movements.length > 0 ? movements[movements.length - 1].balance : 0}</div>
                 <p className="text-xs text-muted-foreground">Current Balance</p>
               </div>
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
               <div>
-                <p className="text-muted-foreground text-xs">Unit Price</p>
-                <p className="font-semibold">ETB {item.unit_price}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Total Value</p>
-                <p className="font-semibold">ETB {(item.quantity * item.unit_price).toFixed(2)}</p>
+                <p className="text-muted-foreground text-xs">Cost Price</p>
+                <p className="font-semibold">ETB {item.cost_price}</p>
               </div>
               <div>
                 <p className="text-muted-foreground text-xs">Total Movements</p>
@@ -212,8 +206,8 @@ const StockCard = () => {
               </div>
               <div>
                 <p className="text-muted-foreground text-xs">Status</p>
-                <Badge variant={item.quantity > 0 ? "secondary" : "destructive"} className="text-xs">
-                  {item.quantity > 0 ? "In Stock" : "Out of Stock"}
+                <Badge variant={(movements.length > 0 ? movements[movements.length - 1].balance : 0) > 0 ? "secondary" : "destructive"} className="text-xs">
+                  {(movements.length > 0 ? movements[movements.length - 1].balance : 0) > 0 ? "In Stock" : "Out of Stock"}
                 </Badge>
               </div>
             </div>

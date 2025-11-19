@@ -13,8 +13,6 @@ interface Item {
   id: string;
   name: string;
   sku: string;
-  quantity: number;
-  unit_price: number;
   cost_price: number;
   low_stock_threshold: number;
   categories?: {
@@ -108,19 +106,20 @@ const StockBalance = () => {
 
         const transactions = transactionsData || [];
 
-        // Calculate running balance starting from current quantity and working backwards
-        // This ensures we never show negative balances
-        let currentBalance = item.quantity;
+        // Calculate running balance starting from 0 and working forwards
+        let currentBalance = 0;
         const runningBalances: number[] = [];
 
-        // Work backwards from current balance
-        for (let i = transactions.length - 1; i >= 0; i--) {
-          runningBalances.unshift(currentBalance);
+        // Work forwards from 0 balance
+        for (let i = 0; i < transactions.length; i++) {
           if (transactions[i].transactions.transaction_type === 'purchase') {
-            currentBalance -= transactions[i].quantity;
-          } else if (transactions[i].transactions.transaction_type === 'sale') {
             currentBalance += transactions[i].quantity;
+          } else if (transactions[i].transactions.transaction_type === 'sale') {
+            currentBalance -= transactions[i].quantity;
+          } else if (transactions[i].transactions.transaction_type === 'adjustment') {
+            currentBalance += transactions[i].quantity; // adjustments can be positive or negative
           }
+          runningBalances.push(currentBalance);
         }
 
         itemsWithTransactionsData.push({
@@ -133,12 +132,37 @@ const StockBalance = () => {
       setItemsWithTransactions(itemsWithTransactionsData);
 
       // Calculate summary
+      let totalValue = 0;
+      let totalCost = 0;
+      let lowStockItems = 0;
+      let outOfStockItems = 0;
+
+      for (const itemWithTrans of itemsWithTransactionsData) {
+        const currentBalance = itemWithTrans.runningBalance.length > 0
+          ? itemWithTrans.runningBalance[itemWithTrans.runningBalance.length - 1]
+          : 0;
+
+        // For totalValue, use the last transaction's unit_price if available
+        const lastTransaction = itemWithTrans.transactions[itemWithTrans.transactions.length - 1];
+        if (lastTransaction) {
+          totalValue += currentBalance * lastTransaction.unit_price;
+        }
+
+        totalCost += currentBalance * itemWithTrans.item.cost_price;
+
+        if (currentBalance === 0) {
+          outOfStockItems++;
+        } else if (currentBalance <= itemWithTrans.item.low_stock_threshold) {
+          lowStockItems++;
+        }
+      }
+
       const summaryData: BalanceSummary = {
         totalItems: items.length,
-        totalValue: items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0),
-        totalCost: items.reduce((sum, item) => sum + (item.quantity * item.cost_price), 0),
-        lowStockItems: items.filter(item => item.quantity > 0 && item.quantity <= item.low_stock_threshold).length,
-        outOfStockItems: items.filter(item => item.quantity === 0).length,
+        totalValue,
+        totalCost,
+        lowStockItems,
+        outOfStockItems,
       };
 
       setSummary(summaryData);
@@ -153,9 +177,9 @@ const StockBalance = () => {
     }
   };
 
-  const getStockStatus = (item: Item) => {
-    if (item.quantity === 0) return { status: "Out of Stock", variant: "destructive" as const };
-    if (item.quantity <= item.low_stock_threshold) return { status: "Low Stock", variant: "secondary" as const };
+  const getStockStatus = (balance: number, lowStockThreshold: number) => {
+    if (balance === 0) return { status: "Out of Stock", variant: "destructive" as const };
+    if (balance <= lowStockThreshold) return { status: "Low Stock", variant: "secondary" as const };
     return { status: "In Stock", variant: "default" as const };
   };
 
@@ -246,7 +270,8 @@ const StockBalance = () => {
               <div className="space-y-6">
                 {itemsWithTransactions.map((itemWithTrans) => {
                   const { item, transactions, runningBalance } = itemWithTrans;
-                  const stockStatus = getStockStatus(item);
+                  const currentBalance = runningBalance.length > 0 ? runningBalance[runningBalance.length - 1] : 0;
+                  const stockStatus = getStockStatus(currentBalance, item.low_stock_threshold);
 
                   return (
                     <div key={item.id} className="border rounded-lg overflow-hidden">
@@ -265,7 +290,7 @@ const StockBalance = () => {
                               {stockStatus.status}
                             </Badge>
                             <div className="text-sm">
-                              Current Balance: <span className="font-semibold">{item.quantity}</span>
+                              Current Balance: <span className="font-semibold">{currentBalance}</span>
                             </div>
                           </div>
                         </div>
