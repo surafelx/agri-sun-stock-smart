@@ -44,9 +44,32 @@ export type Database = {
         }
         Relationships: []
       }
+      categories: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       items: {
         Row: {
           category: string
+          category_id: string | null
+          cost_price: number
           created_at: string
           created_by: string | null
           description: string | null
@@ -56,12 +79,16 @@ export type Database = {
           parameters: Json | null
           quantity: number
           sku: string
+          subcategory_id: string | null
           supplier: string | null
           unit_price: number
+          uom: string | null
           updated_at: string
         }
         Insert: {
           category: string
+          category_id?: string | null
+          cost_price?: number
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -71,12 +98,16 @@ export type Database = {
           parameters?: Json | null
           quantity?: number
           sku: string
+          subcategory_id?: string | null
           supplier?: string | null
           unit_price?: number
+          uom?: string | null
           updated_at?: string
         }
         Update: {
           category?: string
+          category_id?: string | null
+          cost_price?: number
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -86,11 +117,28 @@ export type Database = {
           parameters?: Json | null
           quantity?: number
           sku?: string
+          subcategory_id?: string | null
           supplier?: string | null
           unit_price?: number
+          uom?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "items_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "items_subcategory_id_fkey"
+            columns: ["subcategory_id"]
+            isOneToOne: false
+            referencedRelation: "subcategories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -115,6 +163,38 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      subcategories: {
+        Row: {
+          category_id: string
+          created_at: string
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          category_id: string
+          created_at?: string
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          category_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subcategories_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       transaction_items: {
         Row: {
@@ -226,6 +306,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      get_current_stock: { Args: { item_id_param: string }; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

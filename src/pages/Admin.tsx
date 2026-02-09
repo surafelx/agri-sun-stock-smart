@@ -98,7 +98,7 @@ const Admin = () => {
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('categories')
         .select('*')
         .order('name');
@@ -116,7 +116,7 @@ const Admin = () => {
 
   const fetchSubcategories = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('subcategories')
         .select('*, categories(name)')
         .order('name');
@@ -203,7 +203,7 @@ const Admin = () => {
 
   const handleAddCategory = async () => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('categories')
         .insert([{ name: newCategoryName }]);
 
@@ -228,7 +228,7 @@ const Admin = () => {
 
   const handleAddSubcategory = async () => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('subcategories')
         .insert([{ name: newSubcategoryName, category_id: selectedCategoryId }]);
 
@@ -254,7 +254,7 @@ const Admin = () => {
 
   const handleDeleteCategory = async (categoryId: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('categories')
         .delete()
         .eq('id', categoryId);
@@ -279,7 +279,7 @@ const Admin = () => {
 
   const handleDeleteSubcategory = async (subcategoryId: string) => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('subcategories')
         .delete()
         .eq('id', subcategoryId);

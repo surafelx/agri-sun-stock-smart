@@ -27,7 +27,7 @@ interface TransactionItem {
   quantity: number;
   unit_price: number;
   total_price: number;
-  profit: number;
+  profit?: number;
   items?: {
     name: string;
     sku: string;

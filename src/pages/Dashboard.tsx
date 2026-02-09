@@ -42,7 +42,7 @@ const Dashboard = () => {
 
       for (const item of items || []) {
         // Get current stock
-        const { data: currentStock, error: stockError } = await supabase
+        const { data: currentStock, error: stockError } = await (supabase as any)
           .rpc('get_current_stock', { item_id_param: item.id });
 
         if (stockError) {
@@ -60,14 +60,14 @@ const Dashboard = () => {
           .single();
 
         if (!transError && lastTransaction) {
-          totalValue += currentStock * lastTransaction.unit_price;
+          totalValue += Number(currentStock) * Number(lastTransaction.unit_price);
         }
 
-        totalCost += currentStock * item.cost_price;
+        totalCost += Number(currentStock) * Number((item as any).cost_price || 0);
 
-        if (currentStock === 0) {
+        if (Number(currentStock) === 0) {
           lowStockCount++;
-        } else if (currentStock <= item.low_stock_threshold) {
+        } else if (Number(currentStock) <= Number(item.low_stock_threshold)) {
           lowStockCount++;
         }
       }
