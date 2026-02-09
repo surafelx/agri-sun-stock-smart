@@ -93,12 +93,22 @@ const Transactions = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [editFormData, setEditFormData] = useState({
+  const [editFormData, setEditFormData] = useState<{
+    type: 'purchase' | 'sale' | 'adjustment';
+    reference: string;
+    customerSupplier: string;
+    contact: string;
+    notes: string;
+    items: Array<{ id?: string; categoryId: string; subcategoryId: string; itemId: string; quantity: string; unitPrice: string }>;
+  }>({
+    type: "purchase",
     reference: "",
     customerSupplier: "",
     contact: "",
     notes: "",
+    items: [{ categoryId: "", subcategoryId: "", itemId: "", quantity: "", unitPrice: "" }],
   });
+  const [editLoading, setEditLoading] = useState(false);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState<{
@@ -344,15 +354,76 @@ const Transactions = () => {
     }
   };
 
-  const openEditDialog = (transaction: Transaction) => {
+  const openEditDialog = async (transaction: Transaction) => {
     setEditingTransaction(transaction);
-    setEditFormData({
-      reference: transaction.reference_number,
-      customerSupplier: transaction.customer_supplier_name,
-      contact: transaction.customer_supplier_contact || "",
-      notes: transaction.notes || "",
-    });
+    setEditLoading(true);
     setEditDialogOpen(true);
+
+    // Fetch existing line items
+    try {
+      const { data: lineItems, error } = await supabase
+        .from('transaction_items')
+        .select('id, item_id, quantity, unit_price, items(category_id, subcategory_id)')
+        .eq('transaction_id', transaction.id);
+
+      if (error) throw error;
+
+      const editItems = (lineItems || []).map((li: any) => ({
+        id: li.id,
+        categoryId: li.items?.category_id || "",
+        subcategoryId: li.items?.subcategory_id || "",
+        itemId: li.item_id,
+        quantity: String(li.quantity),
+        unitPrice: String(li.unit_price),
+      }));
+
+      setEditFormData({
+        type: transaction.transaction_type,
+        reference: transaction.reference_number,
+        customerSupplier: transaction.customer_supplier_name,
+        contact: transaction.customer_supplier_contact || "",
+        notes: transaction.notes || "",
+        items: editItems.length > 0 ? editItems : [{ categoryId: "", subcategoryId: "", itemId: "", quantity: "", unitPrice: "" }],
+      });
+    } catch (error: any) {
+      console.error('Error fetching line items:', error);
+      setEditFormData({
+        type: transaction.transaction_type,
+        reference: transaction.reference_number,
+        customerSupplier: transaction.customer_supplier_name,
+        contact: transaction.customer_supplier_contact || "",
+        notes: transaction.notes || "",
+        items: [{ categoryId: "", subcategoryId: "", itemId: "", quantity: "", unitPrice: "" }],
+      });
+    }
+    setEditLoading(false);
+  };
+
+  const addEditItemRow = () => {
+    setEditFormData({
+      ...editFormData,
+      items: [...editFormData.items, { categoryId: "", subcategoryId: "", itemId: "", quantity: "", unitPrice: "" }],
+    });
+  };
+
+  const removeEditItemRow = (index: number) => {
+    const newItems = editFormData.items.filter((_, i) => i !== index);
+    setEditFormData({ ...editFormData, items: newItems });
+  };
+
+  const updateEditItem = (index: number, field: string, value: string) => {
+    const newItems = [...editFormData.items];
+    newItems[index] = { ...newItems[index], [field]: value };
+    if (field === 'categoryId') {
+      newItems[index].subcategoryId = "";
+      newItems[index].itemId = "";
+      newItems[index].unitPrice = "";
+    }
+    if (field === 'subcategoryId') {
+      newItems[index].itemId = "";
+      newItems[index].unitPrice = "";
+    }
+    setEditFormData({ ...editFormData, items: newItems });
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
@@ -360,17 +431,52 @@ const Transactions = () => {
     if (!editingTransaction) return;
 
     try {
-      const { error } = await supabase
+      const totalAmount = editFormData.items.reduce((sum, item) => {
+        const qty = parseFloat(item.quantity) || 0;
+        const price = parseFloat(item.unitPrice) || 0;
+        return sum + (qty * price);
+      }, 0);
+
+      // Update the transaction
+      const { error: transError } = await supabase
         .from('transactions')
         .update({
+          transaction_type: editFormData.type,
           reference_number: editFormData.reference,
           customer_supplier_name: editFormData.customerSupplier,
           customer_supplier_contact: editFormData.contact || null,
           notes: editFormData.notes || null,
+          total_amount: totalAmount,
         })
         .eq('id', editingTransaction.id);
 
-      if (error) throw error;
+      if (transError) throw transError;
+
+      // Delete old transaction items
+      const { error: deleteError } = await supabase
+        .from('transaction_items')
+        .delete()
+        .eq('transaction_id', editingTransaction.id);
+
+      if (deleteError) throw deleteError;
+
+      // Insert updated transaction items
+      const transactionItems = editFormData.items
+        .filter(item => item.itemId && item.quantity && item.unitPrice)
+        .map(item => ({
+          transaction_id: editingTransaction.id,
+          item_id: item.itemId,
+          quantity: parseFloat(item.quantity),
+          unit_price: parseFloat(item.unitPrice),
+          total_price: parseFloat(item.quantity) * parseFloat(item.unitPrice),
+        }));
+
+      if (transactionItems.length > 0) {
+        const { error: itemsError } = await supabase
+          .from('transaction_items')
+          .insert(transactionItems);
+        if (itemsError) throw itemsError;
+      }
 
       toast({ title: "Success", description: "Transaction updated successfully" });
       setEditDialogOpen(false);
@@ -861,57 +967,185 @@ const Transactions = () => {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Edit Transaction Dialog */}
       <Dialog open={editDialogOpen} onOpenChange={(open) => {
         setEditDialogOpen(open);
         if (!open) setEditingTransaction(null);
       }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-lg">Edit Transaction</DialogTitle>
-            <DialogDescription className="text-sm">Update the transaction details</DialogDescription>
+            <DialogDescription className="text-sm">Update all transaction details including line items</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleEditSubmit} className="space-y-3">
-            <div className="space-y-2">
-              <Label htmlFor="edit-reference">Reference Number *</Label>
-              <Input
-                id="edit-reference"
-                value={editFormData.reference}
-                onChange={(e) => setEditFormData({ ...editFormData, reference: e.target.value })}
-                required
-              />
+          {editLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-customer">Customer/Supplier Name *</Label>
-              <Input
-                id="edit-customer"
-                value={editFormData.customerSupplier}
-                onChange={(e) => setEditFormData({ ...editFormData, customerSupplier: e.target.value })}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-contact">Contact</Label>
-              <Input
-                id="edit-contact"
-                value={editFormData.contact}
-                onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-notes">Notes</Label>
-              <Textarea
-                id="edit-notes"
-                value={editFormData.notes}
-                onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
-                rows={2}
-              />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-              <Button type="submit">Update Transaction</Button>
-            </div>
-          </form>
+          ) : (
+            <form onSubmit={handleEditSubmit} className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-sm">Transaction Type *</Label>
+                  <Select
+                    value={editFormData.type}
+                    onValueChange={(value: 'purchase' | 'sale' | 'adjustment') =>
+                      setEditFormData({ ...editFormData, type: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="purchase">Purchase</SelectItem>
+                      <SelectItem value="sale">Sale</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-sm">Reference Number *</Label>
+                  <Input
+                    value={editFormData.reference}
+                    onChange={(e) => setEditFormData({ ...editFormData, reference: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-sm">
+                    {editFormData.type === 'purchase' ? 'Supplier' : 'Customer'} Name *
+                  </Label>
+                  <Input
+                    value={editFormData.customerSupplier}
+                    onChange={(e) => setEditFormData({ ...editFormData, customerSupplier: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-sm">Contact</Label>
+                  <Input
+                    value={editFormData.contact}
+                    onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label className="text-sm">Notes</Label>
+                <Textarea
+                  value={editFormData.notes}
+                  onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                  rows={2}
+                />
+              </div>
+
+              <div className="border-t pt-3">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-semibold text-sm">Line Items</h4>
+                  <Button type="button" variant="outline" size="sm" onClick={addEditItemRow}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Item
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  {editFormData.items.map((item, index) => (
+                    <div key={index} className="grid grid-cols-5 gap-2 items-end">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Category</Label>
+                        <Select
+                          value={item.categoryId}
+                          onValueChange={(value) => updateEditItem(index, 'categoryId', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Category" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {categories.map((cat) => (
+                              <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Subcategory</Label>
+                        <Select
+                          value={item.subcategoryId}
+                          onValueChange={(value) => updateEditItem(index, 'subcategoryId', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Subcategory" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {subcategories.filter(sub => !item.categoryId || sub.category_id === item.categoryId).map((sub) => (
+                              <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Item</Label>
+                        <Select
+                          value={item.itemId}
+                          onValueChange={(value) => updateEditItem(index, 'itemId', value)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select item" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {items.filter(invItem => {
+                              const matchCat = !item.categoryId || invItem.category_id === item.categoryId;
+                              const matchSub = !item.subcategoryId || invItem.subcategory_id === item.subcategoryId;
+                              return matchCat && matchSub;
+                            }).map((invItem) => (
+                              <SelectItem key={invItem.id} value={invItem.id}>
+                                {invItem.name} ({invItem.sku})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Quantity</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={item.quantity}
+                          onChange={(e) => updateEditItem(index, 'quantity', e.target.value)}
+                          placeholder="0"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Unit Price</Label>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={item.unitPrice}
+                          onChange={(e) => updateEditItem(index, 'unitPrice', e.target.value)}
+                          placeholder="0.00"
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeEditItemRow(index)}
+                          disabled={editFormData.items.length === 1}
+                          className="mt-1"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3">
+                <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+                <Button type="submit">Update Transaction</Button>
+              </div>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </Layout>
