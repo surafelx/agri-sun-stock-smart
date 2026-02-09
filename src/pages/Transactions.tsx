@@ -29,7 +29,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download } from "lucide-react";
+import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
@@ -78,6 +88,15 @@ const Transactions = () => {
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState({
+    reference: "",
+    customerSupplier: "",
+    contact: "",
+    notes: "",
+  });
   const { toast } = useToast();
 
   const [formData, setFormData] = useState<{
@@ -298,6 +317,66 @@ const Transactions = () => {
     // Note: unit_price is no longer stored in items, user must enter manually
 
     setFormData({ ...formData, items: newItems });
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      // Delete transaction items first
+      const { error: itemsError } = await supabase
+        .from('transaction_items')
+        .delete()
+        .eq('transaction_id', id);
+      if (itemsError) throw itemsError;
+
+      const { error } = await supabase
+        .from('transactions')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Transaction deleted successfully" });
+      setDeleteId(null);
+      fetchTransactions();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error deleting transaction", description: error.message });
+    }
+  };
+
+  const openEditDialog = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setEditFormData({
+      reference: transaction.reference_number,
+      customerSupplier: transaction.customer_supplier_name,
+      contact: transaction.customer_supplier_contact || "",
+      notes: transaction.notes || "",
+    });
+    setEditDialogOpen(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTransaction) return;
+
+    try {
+      const { error } = await supabase
+        .from('transactions')
+        .update({
+          reference_number: editFormData.reference,
+          customer_supplier_name: editFormData.customerSupplier,
+          customer_supplier_contact: editFormData.contact || null,
+          notes: editFormData.notes || null,
+        })
+        .eq('id', editingTransaction.id);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Transaction updated successfully" });
+      setEditDialogOpen(false);
+      setEditingTransaction(null);
+      fetchTransactions();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error updating transaction", description: error.message });
+    }
   };
 
   const getTransactionIcon = (type: string) => {
@@ -721,15 +800,35 @@ const Transactions = () => {
                             ETB {transaction.total_amount.toLocaleString()}
                           </TableCell>
                           <TableCell className="text-right py-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => generatePDF(transaction.id)}
-                              className="h-7 w-7 p-0"
-                              title="Generate PDF"
-                            >
-                              <FileText className="h-3.5 w-3.5" />
-                            </Button>
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => generatePDF(transaction.id)}
+                                className="h-7 w-7 p-0"
+                                title="Generate PDF"
+                              >
+                                <FileText className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditDialog(transaction)}
+                                className="h-7 w-7 p-0"
+                                title="Edit Transaction"
+                              >
+                                <Edit className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setDeleteId(transaction.id)}
+                                className="h-7 w-7 p-0"
+                                title="Delete Transaction"
+                              >
+                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -741,6 +840,78 @@ const Transactions = () => {
           </Card>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete this transaction and all its line items. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteId && handleDelete(deleteId)}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Edit Transaction Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={(open) => {
+        setEditDialogOpen(open);
+        if (!open) setEditingTransaction(null);
+      }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-lg">Edit Transaction</DialogTitle>
+            <DialogDescription className="text-sm">Update the transaction details</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="edit-reference">Reference Number *</Label>
+              <Input
+                id="edit-reference"
+                value={editFormData.reference}
+                onChange={(e) => setEditFormData({ ...editFormData, reference: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-customer">Customer/Supplier Name *</Label>
+              <Input
+                id="edit-customer"
+                value={editFormData.customerSupplier}
+                onChange={(e) => setEditFormData({ ...editFormData, customerSupplier: e.target.value })}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-contact">Contact</Label>
+              <Input
+                id="edit-contact"
+                value={editFormData.contact}
+                onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-notes">Notes</Label>
+              <Textarea
+                id="edit-notes"
+                value={editFormData.notes}
+                onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })}
+                rows={2}
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
+              <Button type="submit">Update Transaction</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };
