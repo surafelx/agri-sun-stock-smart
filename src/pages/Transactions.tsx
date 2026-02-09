@@ -52,6 +52,8 @@ interface Transaction {
   transaction_date: string;
   reference_number: string;
   customer_supplier_name: string;
+  customer_supplier_contact?: string | null;
+  notes?: string | null;
   total_amount: number;
 }
 

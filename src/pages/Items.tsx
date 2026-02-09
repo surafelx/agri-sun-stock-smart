@@ -91,7 +91,7 @@ const Items = () => {
 
   const fetchItems = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('items')
         .select('*, categories(name), subcategories(name)')
         .order('created_at', { ascending: false });
@@ -111,7 +111,7 @@ const Items = () => {
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('categories')
         .select('*')
         .order('name');
@@ -129,7 +129,7 @@ const Items = () => {
 
   const fetchSubcategories = async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('subcategories')
         .select('*')
         .order('name');
@@ -152,9 +152,10 @@ const Items = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const itemData = {
+      const itemData: any = {
         name: formData.name,
         sku: formData.sku,
+        category: formData.category_id || 'Uncategorized',
         category_id: formData.category_id || null,
         subcategory_id: formData.subcategory_id || null,
         description: formData.description,
