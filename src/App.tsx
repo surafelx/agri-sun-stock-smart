@@ -11,6 +11,7 @@ import StockBalance from "./pages/StockBalance";
 import Transactions from "./pages/Transactions";
 import TransactionDetail from "./pages/TransactionDetail";
 import Admin from "./pages/Admin";
+import ImportPage from "./pages/ImportPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
           <Route path="/stock-balance" element={<StockBalance />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/transactions/:transactionId" element={<TransactionDetail />} />
+          <Route path="/import" element={<ImportPage />} />
           <Route path="/admin" element={<Admin />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

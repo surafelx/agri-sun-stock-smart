@@ -217,7 +217,7 @@ const Transactions = () => {
               .from('items')
               .select('name')
               .eq('id', item.itemId)
-              .single();
+              .maybeSingle();
 
             if (itemError) throw itemError;
 
@@ -248,7 +248,7 @@ const Transactions = () => {
           created_by: user.id,
         }])
         .select()
-        .single();
+        .maybeSingle();
 
       if (transError) throw transError;
 
@@ -505,7 +505,7 @@ const Transactions = () => {
         .from('transactions')
         .select('*')
         .eq('id', transactionId)
-        .single();
+        .maybeSingle();
 
       if (transError) throw transError;
 

@@ -54,7 +54,7 @@ const TransactionDetail = () => {
         .from('transactions')
         .select('*')
         .eq('id', transactionId)
-        .single();
+        .maybeSingle();
 
       if (transError) throw transError;
 

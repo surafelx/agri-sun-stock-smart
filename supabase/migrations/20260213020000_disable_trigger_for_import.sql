@@ -1,0 +1,43 @@
+-- Migration to run BEFORE import, then re-enable after
+-- This disables the cost_price trigger temporarily
+
+-- Disable the trigger
+DROP TRIGGER IF EXISTS update_cost_price_on_purchase_trigger ON public.transaction_items;
+
+-- Migration to run AFTER import to re-enable the trigger
+-- CREATE OR REPLACE FUNCTION public.update_cost_price_on_purchase()
+-- RETURNS TRIGGER
+-- LANGUAGE plpgsql
+-- SECURITY DEFINER
+-- SET search_path = public
+-- AS $$
+-- DECLARE
+--   v_transaction_type transaction_type;
+--   v_current_stock DECIMAL(10,2);
+--   v_current_cost DECIMAL(10,2);
+-- BEGIN
+--   SELECT transaction_type INTO v_transaction_type
+--   FROM transactions
+--   WHERE id = NEW.transaction_id;
+--
+--   IF v_transaction_type = 'purchase' THEN
+--     SELECT COALESCE(get_current_stock(NEW.item_id), 0), COALESCE(cost_price, 0)
+--     INTO v_current_stock, v_current_cost
+--     FROM items
+--     WHERE id = NEW.item_id;
+--
+--     IF (v_current_stock + NEW.quantity) > 0 THEN
+--       UPDATE items
+--       SET cost_price = ((v_current_stock * v_current_cost) + (NEW.quantity * NEW.unit_price)) / (v_current_stock + NEW.quantity)
+--       WHERE id = NEW.item_id;
+--     END IF;
+--   END IF;
+--
+--   RETURN NEW;
+-- END;
+-- $$;
+--
+-- CREATE TRIGGER update_cost_price_on_purchase_trigger
+--   BEFORE INSERT ON public.transaction_items
+--   FOR EACH ROW
+--   EXECUTE FUNCTION public.update_cost_price_on_purchase();

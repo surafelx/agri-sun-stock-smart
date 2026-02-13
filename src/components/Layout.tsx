@@ -2,7 +2,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase, User } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
-import { LogOut, Sun, LayoutDashboard, Package, ArrowLeftRight, Settings, BarChart3 } from "lucide-react";
+import { LogOut, Sun, LayoutDashboard, Package, ArrowLeftRight, Settings, BarChart3, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface LayoutProps {
@@ -114,6 +114,15 @@ const Layout = ({ children }: LayoutProps) => {
             >
               <ArrowLeftRight className="w-3.5 h-3.5 mr-1.5" />
               Transactions
+            </Button>
+            <Button
+              variant={isActiveRoute("/import") ? "default" : "ghost"}
+              size="sm"
+              onClick={() => navigate("/import")}
+              className="h-8 text-xs"
+            >
+              <Upload className="w-3.5 h-3.5 mr-1.5" />
+              Import
             </Button>
             <Button
               variant={isActiveRoute("/admin") ? "default" : "ghost"}

@@ -57,7 +57,7 @@ const Dashboard = () => {
           .eq('item_id', item.id)
           .order('created_at', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         if (!transError && lastTransaction) {
           totalValue += Number(currentStock) * Number(lastTransaction.unit_price);

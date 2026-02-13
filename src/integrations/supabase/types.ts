@@ -306,6 +306,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      disable_trigger: { Args: { trigger_name: string }; Returns: void }
+      enable_trigger: { Args: { trigger_name: string }; Returns: void }
       get_current_stock: { Args: { item_id_param: string }; Returns: number }
       has_role: {
         Args: {

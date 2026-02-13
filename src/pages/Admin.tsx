@@ -139,7 +139,7 @@ const Admin = () => {
         .from('profiles')
         .select('id')
         .eq('email', newUserEmail)
-        .single();
+        .maybeSingle();
 
       if (profileError || !profiles) {
         toast({

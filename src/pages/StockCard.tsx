@@ -53,7 +53,7 @@ const StockCard = () => {
         .from('items')
         .select('*, categories(name)')
         .eq('id', itemId)
-        .single();
+        .maybeSingle();
 
       if (itemError) throw itemError;
 
