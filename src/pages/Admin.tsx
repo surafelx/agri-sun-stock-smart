@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, FileText, Shield, Plus, Trash2, Tag } from "lucide-react";
+import { Settings, Users, FileText, Shield, Plus, Trash2, Tag, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface UserRole {
@@ -49,11 +49,18 @@ const Admin = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [subcategoryDialogOpen, setSubcategoryDialogOpen] = useState(false);
+  const [editCategoryOpen, setEditCategoryOpen] = useState(false);
+  const [editSubcategoryOpen, setEditSubcategoryOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editingSubcategory, setEditingSubcategory] = useState<Subcategory | null>(null);
   const [newUserEmail, setNewUserEmail] = useState("");
   const [newUserRole, setNewUserRole] = useState<"admin" | "inventory_clerk" | "accountant">("inventory_clerk");
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [editCategoryName, setEditCategoryName] = useState("");
   const [newSubcategoryName, setNewSubcategoryName] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [editSubcategoryName, setEditSubcategoryName] = useState("");
+  const [editSubcategoryCategoryId, setEditSubcategoryCategoryId] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -301,6 +308,77 @@ const Admin = () => {
     }
   };
 
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setEditCategoryName(category.name);
+    setEditCategoryOpen(true);
+  };
+
+  const handleSaveCategory = async () => {
+    if (!editingCategory) return;
+    try {
+      const { error } = await (supabase as any)
+        .from('categories')
+        .update({ name: editCategoryName, updated_at: new Date().toISOString() })
+        .eq('id', editingCategory.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Category updated successfully",
+      });
+
+      setEditCategoryOpen(false);
+      setEditingCategory(null);
+      fetchCategories();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error updating category",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleEditSubcategory = (subcategory: Subcategory) => {
+    setEditingSubcategory(subcategory);
+    setEditSubcategoryName(subcategory.name);
+    setEditSubcategoryCategoryId(subcategory.category_id);
+    setEditSubcategoryOpen(true);
+  };
+
+  const handleSaveSubcategory = async () => {
+    if (!editingSubcategory) return;
+    try {
+      const { error } = await (supabase as any)
+        .from('subcategories')
+        .update({ 
+          name: editSubcategoryName, 
+          category_id: editSubcategoryCategoryId,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('id', editingSubcategory.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Subcategory updated successfully",
+      });
+
+      setEditSubcategoryOpen(false);
+      setEditingSubcategory(null);
+      fetchSubcategories();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error updating subcategory",
+        description: error.message,
+      });
+    }
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -503,6 +581,38 @@ const Admin = () => {
                       </div>
                     </DialogContent>
                   </Dialog>
+
+                  {/* Edit Category Dialog */}
+                  <Dialog open={editCategoryOpen} onOpenChange={setEditCategoryOpen}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Edit Category</DialogTitle>
+                        <DialogDescription>
+                          Update the category name
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3 py-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="editCategoryName" className="text-sm">Category Name</Label>
+                          <Input
+                            id="editCategoryName"
+                            placeholder="e.g., Electronics"
+                            value={editCategoryName}
+                            onChange={(e) => setEditCategoryName(e.target.value)}
+                            className="h-9"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setEditCategoryOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button size="sm" onClick={handleSaveCategory}>
+                          Save Changes
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
@@ -511,7 +621,7 @@ const Admin = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="h-9">Category Name</TableHead>
-                        <TableHead className="h-9 w-[80px]">Actions</TableHead>
+                        <TableHead className="h-9 w-[100px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -521,14 +631,24 @@ const Admin = () => {
                             {category.name}
                           </TableCell>
                           <TableCell className="py-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteCategory(category.id)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditCategory(category)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Pencil className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteCategory(category.id)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -596,6 +716,53 @@ const Admin = () => {
                       </div>
                     </DialogContent>
                   </Dialog>
+
+                  {/* Edit Subcategory Dialog */}
+                  <Dialog open={editSubcategoryOpen} onOpenChange={setEditSubcategoryOpen}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Edit Subcategory</DialogTitle>
+                        <DialogDescription>
+                          Update the subcategory name and category
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-3 py-3">
+                        <div className="space-y-1">
+                          <Label htmlFor="editSubcategoryName" className="text-sm">Subcategory Name</Label>
+                          <Input
+                            id="editSubcategoryName"
+                            placeholder="e.g., Smartphones"
+                            value={editSubcategoryName}
+                            onChange={(e) => setEditSubcategoryName(e.target.value)}
+                            className="h-9"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label htmlFor="editCategorySelect" className="text-sm">Category</Label>
+                          <Select value={editSubcategoryCategoryId} onValueChange={setEditSubcategoryCategoryId}>
+                            <SelectTrigger id="editCategorySelect" className="h-9">
+                              <SelectValue placeholder="Select a category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {categories.map((category) => (
+                                <SelectItem key={category.id} value={category.id}>
+                                  {category.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setEditSubcategoryOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button size="sm" onClick={handleSaveSubcategory}>
+                          Save Changes
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
@@ -605,7 +772,7 @@ const Admin = () => {
                       <TableRow>
                         <TableHead className="h-9">Subcategory Name</TableHead>
                         <TableHead className="h-9">Category</TableHead>
-                        <TableHead className="h-9 w-[80px]">Actions</TableHead>
+                        <TableHead className="h-9 w-[100px]">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -618,14 +785,24 @@ const Admin = () => {
                             {subcategory.categories?.name || "N/A"}
                           </TableCell>
                           <TableCell className="py-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteSubcategory(subcategory.id)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditSubcategory(subcategory)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Pencil className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteSubcategory(subcategory.id)}
+                                className="h-8 w-8 p-0"
+                              >
+                                <Trash2 className="w-4 h-4 text-destructive" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
