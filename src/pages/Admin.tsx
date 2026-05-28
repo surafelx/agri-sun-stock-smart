@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { users as usersApi, categories as categoriesApi, normalizeUser, normalizeCategory, normalizeSubcategory } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,373 +11,186 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, FileText, Shield, Plus, Trash2, Tag, Pencil } from "lucide-react";
+import { Settings, Users, Shield, Plus, Trash2, Tag, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-interface UserRole {
-  id: string;
-  user_id: string;
-  role: string;
-  profiles?: {
-    email: string;
-    full_name: string;
-  };
-}
-
-interface Category {
-  id: string;
-  name: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Subcategory {
-  id: string;
-  name: string;
-  category_id: string;
-  created_at: string;
-  updated_at: string;
-  categories?: {
-    name: string;
-  };
-}
+import { useNavigate } from "react-router-dom";
 
 const Admin = () => {
-  const [userRoles, setUserRoles] = useState<UserRole[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
+  const { user: me } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const [usersList, setUsersList] = useState<any[]>([]);
+  const [categoriesList, setCategoriesList] = useState<any[]>([]);
+  const [subcategoriesList, setSubcategoriesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const [userDialogOpen, setUserDialogOpen] = useState(false);
+  const [editUserOpen, setEditUserOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [newUserForm, setNewUserForm] = useState({ fullName: "", email: "", password: "", role: "inventory_clerk" as string });
+  const [editUserForm, setEditUserForm] = useState({ fullName: "", email: "", role: "inventory_clerk" as string });
+
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [subcategoryDialogOpen, setSubcategoryDialogOpen] = useState(false);
   const [editCategoryOpen, setEditCategoryOpen] = useState(false);
   const [editSubcategoryOpen, setEditSubcategoryOpen] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [editingSubcategory, setEditingSubcategory] = useState<Subcategory | null>(null);
-  const [newUserEmail, setNewUserEmail] = useState("");
-  const [newUserRole, setNewUserRole] = useState<"admin" | "inventory_clerk" | "accountant">("inventory_clerk");
+  const [editingCategory, setEditingCategory] = useState<any | null>(null);
+  const [editingSubcategory, setEditingSubcategory] = useState<any | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [editCategoryName, setEditCategoryName] = useState("");
   const [newSubcategoryName, setNewSubcategoryName] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [editSubcategoryName, setEditSubcategoryName] = useState("");
   const [editSubcategoryCategoryId, setEditSubcategoryCategoryId] = useState("");
-  const { toast } = useToast();
 
   useEffect(() => {
-    fetchUserRoles();
-    fetchCategories();
-    fetchSubcategories();
-  }, []);
+    if (me?.role !== 'admin') { navigate('/'); return; }
+    fetchAll();
+  }, [me]);
 
-  const fetchUserRoles = async () => {
+  const fetchAll = async () => {
+    setLoading(true);
     try {
-      // Fetch user roles
-      const { data: rolesData, error: rolesError } = await supabase
-        .from('user_roles')
-        .select('*');
-
-      if (rolesError) throw rolesError;
-
-      // Fetch profiles separately
-      const { data: profilesData, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, email, full_name');
-
-      if (profilesError) throw profilesError;
-
-      // Merge the data
-      const mergedData = rolesData?.map(role => ({
-        ...role,
-        profiles: profilesData?.find(profile => profile.id === role.user_id)
-      })) || [];
-
-      setUserRoles(mergedData);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error fetching user roles",
-        description: error.message,
-      });
+      await Promise.all([fetchUsers(), fetchCategories()]);
     } finally {
       setLoading(false);
     }
   };
 
+  const fetchUsers = async () => {
+    const res = await usersApi.list({ limit: "100" });
+    setUsersList((res.users || []).map(normalizeUser));
+  };
+
   const fetchCategories = async () => {
-    try {
-      const { data, error } = await (supabase as any)
-        .from('categories')
-        .select('*')
-        .order('name');
+    const res = await categoriesApi.list();
+    const cats = (res.categories || []).map(normalizeCategory);
+    setCategoriesList(cats);
+    const allSubs: any[] = [];
+    for (const cat of cats) {
+      const subRes = await categoriesApi.listSubcategories(cat.id);
+      (subRes.subcategories || []).forEach((s: any) =>
+        allSubs.push(normalizeSubcategory({ ...s, category: { _id: cat.id, name: cat.name } }))
+      );
+    }
+    setSubcategoriesList(allSubs);
+  };
 
-      if (error) throw error;
-      setCategories(data || []);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error fetching categories",
-        description: error.message,
-      });
+  const handleCreateUser = async () => {
+    try {
+      await usersApi.create({ fullName: newUserForm.fullName, email: newUserForm.email, password: newUserForm.password, role: newUserForm.role });
+      toast({ title: "Success", description: "User created" });
+      setUserDialogOpen(false);
+      setNewUserForm({ fullName: "", email: "", password: "", role: "inventory_clerk" });
+      fetchUsers();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
     }
   };
 
-  const fetchSubcategories = async () => {
-    try {
-      const { data, error } = await (supabase as any)
-        .from('subcategories')
-        .select('*, categories(name)')
-        .order('name');
+  const handleEditUser = (user: any) => {
+    setEditingUser(user);
+    setEditUserForm({ fullName: user.full_name || user.fullName || "", email: user.email, role: user.role });
+    setEditUserOpen(true);
+  };
 
-      if (error) throw error;
-      setSubcategories(data || []);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error fetching subcategories",
-        description: error.message,
-      });
+  const handleSaveUser = async () => {
+    if (!editingUser) return;
+    try {
+      await usersApi.update(editingUser.id, { fullName: editUserForm.fullName, email: editUserForm.email, role: editUserForm.role });
+      toast({ title: "Success", description: "User updated" });
+      setEditUserOpen(false);
+      fetchUsers();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
     }
   };
 
-  const handleAddUserRole = async () => {
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm("Delete this user?")) return;
     try {
-      // Find user by email
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('email', newUserEmail)
-        .maybeSingle();
-
-      if (profileError || !profiles) {
-        toast({
-          variant: "destructive",
-          title: "User not found",
-          description: "No user found with this email address",
-        });
-        return;
-      }
-
-      const { error } = await supabase
-        .from('user_roles')
-        .insert([{
-          user_id: profiles.id,
-          role: newUserRole,
-        }]);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "User role added successfully",
-      });
-
-      setDialogOpen(false);
-      setNewUserEmail("");
-      setNewUserRole("inventory_clerk");
-      fetchUserRoles();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error adding user role",
-        description: error.message,
-      });
-    }
-  };
-
-  const handleDeleteRole = async (roleId: string) => {
-    try {
-      const { error } = await supabase
-        .from('user_roles')
-        .delete()
-        .eq('id', roleId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "User role removed successfully",
-      });
-
-      fetchUserRoles();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error removing role",
-        description: error.message,
-      });
+      await usersApi.delete(id);
+      toast({ title: "Success", description: "User deleted" });
+      fetchUsers();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
     }
   };
 
   const handleAddCategory = async () => {
     try {
-      const { error } = await (supabase as any)
-        .from('categories')
-        .insert([{ name: newCategoryName }]);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Category added successfully",
-      });
-
+      await categoriesApi.create(newCategoryName);
+      toast({ title: "Success", description: "Category added" });
       setCategoryDialogOpen(false);
       setNewCategoryName("");
       fetchCategories();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error adding category",
-        description: error.message,
-      });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
     }
   };
 
   const handleAddSubcategory = async () => {
     try {
-      const { error } = await (supabase as any)
-        .from('subcategories')
-        .insert([{ name: newSubcategoryName, category_id: selectedCategoryId }]);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Subcategory added successfully",
-      });
-
+      await categoriesApi.createSubcategory(selectedCategoryId, newSubcategoryName);
+      toast({ title: "Success", description: "Subcategory added" });
       setSubcategoryDialogOpen(false);
       setNewSubcategoryName("");
       setSelectedCategoryId("");
-      fetchSubcategories();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error adding subcategory",
-        description: error.message,
-      });
-    }
-  };
-
-  const handleDeleteCategory = async (categoryId: string) => {
-    try {
-      const { error } = await (supabase as any)
-        .from('categories')
-        .delete()
-        .eq('id', categoryId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Category removed successfully",
-      });
-
       fetchCategories();
-      fetchSubcategories(); // Refresh subcategories as they might be deleted
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error removing category",
-        description: error.message,
-      });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
     }
   };
 
-  const handleDeleteSubcategory = async (subcategoryId: string) => {
+  const handleDeleteCategory = async (id: string) => {
+    if (!confirm("Delete category and all its subcategories?")) return;
     try {
-      const { error } = await (supabase as any)
-        .from('subcategories')
-        .delete()
-        .eq('id', subcategoryId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Subcategory removed successfully",
-      });
-
-      fetchSubcategories();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error removing subcategory",
-        description: error.message,
-      });
+      await categoriesApi.delete(id);
+      toast({ title: "Success", description: "Category deleted" });
+      fetchCategories();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
     }
   };
 
-  const handleEditCategory = (category: Category) => {
-    setEditingCategory(category);
-    setEditCategoryName(category.name);
-    setEditCategoryOpen(true);
+  const handleDeleteSubcategory = async (sub: any) => {
+    try {
+      await categoriesApi.deleteSubcategory(sub.category_id, sub.id);
+      toast({ title: "Success", description: "Subcategory deleted" });
+      fetchCategories();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    }
   };
 
   const handleSaveCategory = async () => {
     if (!editingCategory) return;
     try {
-      const { error } = await (supabase as any)
-        .from('categories')
-        .update({ name: editCategoryName, updated_at: new Date().toISOString() })
-        .eq('id', editingCategory.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Category updated successfully",
-      });
-
+      await categoriesApi.update(editingCategory.id, editCategoryName);
+      toast({ title: "Success", description: "Category updated" });
       setEditCategoryOpen(false);
-      setEditingCategory(null);
       fetchCategories();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error updating category",
-        description: error.message,
-      });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
     }
-  };
-
-  const handleEditSubcategory = (subcategory: Subcategory) => {
-    setEditingSubcategory(subcategory);
-    setEditSubcategoryName(subcategory.name);
-    setEditSubcategoryCategoryId(subcategory.category_id);
-    setEditSubcategoryOpen(true);
   };
 
   const handleSaveSubcategory = async () => {
     if (!editingSubcategory) return;
     try {
-      const { error } = await (supabase as any)
-        .from('subcategories')
-        .update({ 
-          name: editSubcategoryName, 
-          category_id: editSubcategoryCategoryId,
-          updated_at: new Date().toISOString() 
-        })
-        .eq('id', editingSubcategory.id);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Subcategory updated successfully",
-      });
-
+      await categoriesApi.updateSubcategory(editSubcategoryCategoryId, editingSubcategory.id, editSubcategoryName);
+      toast({ title: "Success", description: "Subcategory updated" });
       setEditSubcategoryOpen(false);
-      setEditingSubcategory(null);
-      fetchSubcategories();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error updating subcategory",
-        description: error.message,
-      });
+      fetchCategories();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
     }
+  };
+
+  const roleColor = (role: string) => {
+    if (role === 'admin') return 'destructive';
+    if (role === 'accountant') return 'default';
+    return 'secondary';
   };
 
   if (loading) {
@@ -392,118 +206,70 @@ const Admin = () => {
   return (
     <Layout>
       <div className="space-y-4">
-        <div>
-          <h2 className="text-2xl font-bold">Admin Settings</h2>
-          <p className="text-sm text-muted-foreground">Manage users, roles, and system configuration</p>
-        </div>
+        <div><h2 className="text-2xl font-bold">Admin Settings</h2><p className="text-sm text-muted-foreground">Manage users and system configuration</p></div>
 
         <Tabs defaultValue="users" className="space-y-3">
-           <TabsList className="grid w-full grid-cols-2 lg:w-[400px]">
-             <TabsTrigger value="users" className="text-sm">
-               <Users className="w-4 h-4 mr-1" />
-               Users & Roles
-             </TabsTrigger>
-             <TabsTrigger value="categories" className="text-sm">
-               <Tag className="w-4 h-4 mr-1" />
-               Categories
-             </TabsTrigger>
-           </TabsList>
+          <TabsList>
+            <TabsTrigger value="users" className="gap-1.5"><Users className="h-3.5 w-3.5" />Users</TabsTrigger>
+            <TabsTrigger value="categories" className="gap-1.5"><Tag className="h-3.5 w-3.5" />Categories</TabsTrigger>
+          </TabsList>
 
-          <TabsContent value="users" className="space-y-3">
-            <Card className="shadow-card">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">User Roles</CardTitle>
-                    <CardDescription className="text-sm">Manage user access and permissions</CardDescription>
-                  </div>
-                  <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button size="sm">
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Role
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Add User Role</DialogTitle>
-                        <DialogDescription>
-                          Assign a role to a user by their email address
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3 py-3">
-                        <div className="space-y-1">
-                          <Label htmlFor="email" className="text-sm">User Email</Label>
-                          <Input
-                            id="email"
-                            type="email"
-                            placeholder="user@example.com"
-                            value={newUserEmail}
-                            onChange={(e) => setNewUserEmail(e.target.value)}
-                            className="h-9"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="role" className="text-sm">Role</Label>
-                          <Select value={newUserRole} onValueChange={(value: any) => setNewUserRole(value)}>
-                            <SelectTrigger id="role" className="h-9">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="admin">Admin</SelectItem>
-                              <SelectItem value="inventory_clerk">Inventory Clerk</SelectItem>
-                              <SelectItem value="accountant">Accountant</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+          {/* ── Users Tab ── */}
+          <TabsContent value="users">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <div><CardTitle className="text-base flex items-center gap-2"><Shield className="h-4 w-4" />User Management</CardTitle><CardDescription className="text-sm">Manage system users and roles</CardDescription></div>
+                <Dialog open={userDialogOpen} onOpenChange={setUserDialogOpen}>
+                  <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" />Add User</Button></DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader><DialogTitle>Create User</DialogTitle><DialogDescription>Add a new system user</DialogDescription></DialogHeader>
+                    <div className="space-y-3">
+                      <div className="space-y-1"><Label>Full Name</Label><Input value={newUserForm.fullName} onChange={(e) => setNewUserForm({ ...newUserForm, fullName: e.target.value })} /></div>
+                      <div className="space-y-1"><Label>Email</Label><Input type="email" value={newUserForm.email} onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })} /></div>
+                      <div className="space-y-1"><Label>Password</Label><Input type="password" value={newUserForm.password} onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })} placeholder="Min 6 chars" /></div>
+                      <div className="space-y-1">
+                        <Label>Role</Label>
+                        <Select value={newUserForm.role} onValueChange={(v) => setNewUserForm({ ...newUserForm, role: v })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="inventory_clerk">Inventory Clerk</SelectItem>
+                            <SelectItem value="accountant">Accountant</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button size="sm" onClick={handleAddUserRole}>
-                          Add Role
-                        </Button>
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="outline" onClick={() => setUserDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleCreateUser}>Create</Button>
                       </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </CardHeader>
               <CardContent className="pt-0">
                 <div className="border rounded-lg">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="h-9">User</TableHead>
-                        <TableHead className="h-9">Email</TableHead>
-                        <TableHead className="h-9">Role</TableHead>
-                        <TableHead className="h-9 w-[80px]">Actions</TableHead>
+                        <TableHead className="h-9 text-xs">Name</TableHead>
+                        <TableHead className="h-9 text-xs">Email</TableHead>
+                        <TableHead className="h-9 text-xs">Role</TableHead>
+                        <TableHead className="h-9 text-xs">Status</TableHead>
+                        <TableHead className="h-9 text-xs text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {userRoles.map((userRole) => (
-                        <TableRow key={userRole.id}>
-                          <TableCell className="py-2 font-medium">
-                            {userRole.profiles?.full_name || "Unknown"}
-                          </TableCell>
-                          <TableCell className="py-2 text-sm">
-                            {userRole.profiles?.email || "N/A"}
-                          </TableCell>
-                          <TableCell className="py-2">
-                            <Badge variant="outline" className="text-xs">
-                              {userRole.role === "admin" && <Shield className="w-3 h-3 mr-1" />}
-                              {userRole.role.replace("_", " ")}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="py-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteRole(userRole.id)}
-                              className="h-8 w-8 p-0"
-                            >
-                              <Trash2 className="w-4 h-4 text-destructive" />
-                            </Button>
+                      {usersList.map((u) => (
+                        <TableRow key={u.id}>
+                          <TableCell className="text-sm py-2 font-medium">{u.full_name || u.fullName}</TableCell>
+                          <TableCell className="text-sm py-2">{u.email}</TableCell>
+                          <TableCell className="py-2"><Badge variant={roleColor(u.role)} className="text-xs capitalize">{u.role}</Badge></TableCell>
+                          <TableCell className="py-2"><Badge variant={u.is_active || u.isActive ? "secondary" : "outline"} className="text-xs">{(u.is_active || u.isActive) ? "Active" : "Inactive"}</Badge></TableCell>
+                          <TableCell className="text-right py-2">
+                            <div className="flex justify-end gap-1">
+                              <Button variant="ghost" size="sm" onClick={() => handleEditUser(u)} className="h-7 w-7 p-0"><Pencil className="h-3.5 w-3.5" /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(u.id)} className="h-7 w-7 p-0" disabled={u.id === me?.id}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -513,306 +279,145 @@ const Admin = () => {
               </CardContent>
             </Card>
 
-            <Card className="shadow-card">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg">Role Permissions</CardTitle>
-                <CardDescription className="text-sm">Overview of what each role can do</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3 pt-0">
-                <div className="space-y-2 text-sm">
-                  <div className="flex items-start gap-2">
-                    <Badge variant="outline" className="mt-0.5">Admin</Badge>
-                    <p className="text-muted-foreground">Full access to all features including user management and system settings</p>
+            <Dialog open={editUserOpen} onOpenChange={setEditUserOpen}>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Edit User</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                  <div className="space-y-1"><Label>Full Name</Label><Input value={editUserForm.fullName} onChange={(e) => setEditUserForm({ ...editUserForm, fullName: e.target.value })} /></div>
+                  <div className="space-y-1"><Label>Email</Label><Input type="email" value={editUserForm.email} onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })} /></div>
+                  <div className="space-y-1">
+                    <Label>Role</Label>
+                    <Select value={editUserForm.role} onValueChange={(v) => setEditUserForm({ ...editUserForm, role: v })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="inventory_clerk">Inventory Clerk</SelectItem>
+                        <SelectItem value="accountant">Accountant</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                  <div className="flex items-start gap-2">
-                    <Badge variant="outline" className="mt-0.5">Inventory Clerk</Badge>
-                    <p className="text-muted-foreground">Can create, update items and transactions</p>
-                  </div>
-                  <div className="flex items-start gap-2">
-                    <Badge variant="outline" className="mt-0.5">Accountant</Badge>
-                    <p className="text-muted-foreground">Can view all data and generate reports</p>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" onClick={() => setEditUserOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSaveUser}>Save</Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
-          <TabsContent value="categories" className="space-y-3">
-            <Card className="shadow-card">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">Categories</CardTitle>
-                    <CardDescription className="text-sm">Manage product categories</CardDescription>
-                  </div>
+          {/* ── Categories Tab ── */}
+          <TabsContent value="categories">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Categories */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-3">
+                  <div><CardTitle className="text-base">Categories</CardTitle><CardDescription className="text-sm">{categoriesList.length} categories</CardDescription></div>
                   <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button size="sm">
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Category
-                      </Button>
-                    </DialogTrigger>
+                    <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" />Add</Button></DialogTrigger>
                     <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Add Category</DialogTitle>
-                        <DialogDescription>
-                          Create a new product category
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3 py-3">
-                        <div className="space-y-1">
-                          <Label htmlFor="categoryName" className="text-sm">Category Name</Label>
-                          <Input
-                            id="categoryName"
-                            placeholder="e.g., Electronics"
-                            value={newCategoryName}
-                            onChange={(e) => setNewCategoryName(e.target.value)}
-                            className="h-9"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setCategoryDialogOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button size="sm" onClick={handleAddCategory}>
-                          Add Category
-                        </Button>
+                      <DialogHeader><DialogTitle>Add Category</DialogTitle></DialogHeader>
+                      <div className="space-y-3">
+                        <div className="space-y-1"><Label>Name</Label><Input value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} /></div>
+                        <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setCategoryDialogOpen(false)}>Cancel</Button><Button onClick={handleAddCategory}>Add</Button></div>
                       </div>
                     </DialogContent>
                   </Dialog>
-
-                  {/* Edit Category Dialog */}
-                  <Dialog open={editCategoryOpen} onOpenChange={setEditCategoryOpen}>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Edit Category</DialogTitle>
-                        <DialogDescription>
-                          Update the category name
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3 py-3">
-                        <div className="space-y-1">
-                          <Label htmlFor="editCategoryName" className="text-sm">Category Name</Label>
-                          <Input
-                            id="editCategoryName"
-                            placeholder="e.g., Electronics"
-                            value={editCategoryName}
-                            onChange={(e) => setEditCategoryName(e.target.value)}
-                            className="h-9"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setEditCategoryOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button size="sm" onClick={handleSaveCategory}>
-                          Save Changes
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="border rounded-lg">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="h-9">Category Name</TableHead>
-                        <TableHead className="h-9 w-[100px]">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {categories.map((category) => (
-                        <TableRow key={category.id}>
-                          <TableCell className="py-2 font-medium">
-                            {category.name}
-                          </TableCell>
-                          <TableCell className="py-2">
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditCategory(category)}
-                                className="h-8 w-8 p-0"
-                              >
-                                <Pencil className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteCategory(category.id)}
-                                className="h-8 w-8 p-0"
-                              >
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="shadow-card">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">Subcategories</CardTitle>
-                    <CardDescription className="text-sm">Manage product subcategories</CardDescription>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="border rounded-lg">
+                    <Table>
+                      <TableHeader><TableRow><TableHead className="h-9 text-xs">Name</TableHead><TableHead className="h-9 text-xs text-right">Actions</TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {categoriesList.map((cat) => (
+                          <TableRow key={cat.id}>
+                            <TableCell className="text-sm py-2">{cat.name}</TableCell>
+                            <TableCell className="text-right py-2">
+                              <div className="flex justify-end gap-1">
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { setEditingCategory(cat); setEditCategoryName(cat.name); setEditCategoryOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleDeleteCategory(cat.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
+                </CardContent>
+              </Card>
+
+              {/* Subcategories */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-3">
+                  <div><CardTitle className="text-base">Subcategories</CardTitle><CardDescription className="text-sm">{subcategoriesList.length} subcategories</CardDescription></div>
                   <Dialog open={subcategoryDialogOpen} onOpenChange={setSubcategoryDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button size="sm">
-                        <Plus className="w-4 h-4 mr-1" />
-                        Add Subcategory
-                      </Button>
-                    </DialogTrigger>
+                    <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" />Add</Button></DialogTrigger>
                     <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Add Subcategory</DialogTitle>
-                        <DialogDescription>
-                          Create a new product subcategory
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3 py-3">
+                      <DialogHeader><DialogTitle>Add Subcategory</DialogTitle></DialogHeader>
+                      <div className="space-y-3">
                         <div className="space-y-1">
-                          <Label htmlFor="subcategoryName" className="text-sm">Subcategory Name</Label>
-                          <Input
-                            id="subcategoryName"
-                            placeholder="e.g., Smartphones"
-                            value={newSubcategoryName}
-                            onChange={(e) => setNewSubcategoryName(e.target.value)}
-                            className="h-9"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="categorySelect" className="text-sm">Category</Label>
+                          <Label>Parent Category</Label>
                           <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
-                            <SelectTrigger id="categorySelect" className="h-9">
-                              <SelectValue placeholder="Select a category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {categories.map((category) => (
-                                <SelectItem key={category.id} value={category.id}>
-                                  {category.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
+                            <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
+                            <SelectContent>{categoriesList.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
                           </Select>
                         </div>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setSubcategoryDialogOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button size="sm" onClick={handleAddSubcategory}>
-                          Add Subcategory
-                        </Button>
+                        <div className="space-y-1"><Label>Name</Label><Input value={newSubcategoryName} onChange={(e) => setNewSubcategoryName(e.target.value)} /></div>
+                        <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setSubcategoryDialogOpen(false)}>Cancel</Button><Button onClick={handleAddSubcategory}>Add</Button></div>
                       </div>
                     </DialogContent>
                   </Dialog>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="border rounded-lg">
+                    <Table>
+                      <TableHeader><TableRow><TableHead className="h-9 text-xs">Name</TableHead><TableHead className="h-9 text-xs">Category</TableHead><TableHead className="h-9 text-xs text-right">Actions</TableHead></TableRow></TableHeader>
+                      <TableBody>
+                        {subcategoriesList.map((sub) => (
+                          <TableRow key={sub.id}>
+                            <TableCell className="text-sm py-2">{sub.name}</TableCell>
+                            <TableCell className="text-sm py-2 text-muted-foreground">{sub.categories?.name || '-'}</TableCell>
+                            <TableCell className="text-right py-2">
+                              <div className="flex justify-end gap-1">
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { setEditingSubcategory(sub); setEditSubcategoryName(sub.name); setEditSubcategoryCategoryId(sub.category_id); setEditSubcategoryOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
+                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleDeleteSubcategory(sub)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
-                  {/* Edit Subcategory Dialog */}
-                  <Dialog open={editSubcategoryOpen} onOpenChange={setEditSubcategoryOpen}>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Edit Subcategory</DialogTitle>
-                        <DialogDescription>
-                          Update the subcategory name and category
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-3 py-3">
-                        <div className="space-y-1">
-                          <Label htmlFor="editSubcategoryName" className="text-sm">Subcategory Name</Label>
-                          <Input
-                            id="editSubcategoryName"
-                            placeholder="e.g., Smartphones"
-                            value={editSubcategoryName}
-                            onChange={(e) => setEditSubcategoryName(e.target.value)}
-                            className="h-9"
-                          />
-                        </div>
-                        <div className="space-y-1">
-                          <Label htmlFor="editCategorySelect" className="text-sm">Category</Label>
-                          <Select value={editSubcategoryCategoryId} onValueChange={setEditSubcategoryCategoryId}>
-                            <SelectTrigger id="editCategorySelect" className="h-9">
-                              <SelectValue placeholder="Select a category" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {categories.map((category) => (
-                                <SelectItem key={category.id} value={category.id}>
-                                  {category.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                      <div className="flex justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => setEditSubcategoryOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button size="sm" onClick={handleSaveSubcategory}>
-                          Save Changes
-                        </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+            <Dialog open={editCategoryOpen} onOpenChange={setEditCategoryOpen}>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Edit Category</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                  <div className="space-y-1"><Label>Name</Label><Input value={editCategoryName} onChange={(e) => setEditCategoryName(e.target.value)} /></div>
+                  <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditCategoryOpen(false)}>Cancel</Button><Button onClick={handleSaveCategory}>Save</Button></div>
                 </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="border rounded-lg">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="h-9">Subcategory Name</TableHead>
-                        <TableHead className="h-9">Category</TableHead>
-                        <TableHead className="h-9 w-[100px]">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {subcategories.map((subcategory) => (
-                        <TableRow key={subcategory.id}>
-                          <TableCell className="py-2 font-medium">
-                            {subcategory.name}
-                          </TableCell>
-                          <TableCell className="py-2 text-sm">
-                            {subcategory.categories?.name || "N/A"}
-                          </TableCell>
-                          <TableCell className="py-2">
-                            <div className="flex items-center gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditSubcategory(subcategory)}
-                                className="h-8 w-8 p-0"
-                              >
-                                <Pencil className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteSubcategory(subcategory.id)}
-                                className="h-8 w-8 p-0"
-                              >
-                                <Trash2 className="w-4 h-4 text-destructive" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={editSubcategoryOpen} onOpenChange={setEditSubcategoryOpen}>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Edit Subcategory</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <Label>Parent Category</Label>
+                    <Select value={editSubcategoryCategoryId} onValueChange={setEditSubcategoryCategoryId}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{categoriesList.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1"><Label>Name</Label><Input value={editSubcategoryName} onChange={(e) => setEditSubcategoryName(e.target.value)} /></div>
+                  <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditSubcategoryOpen(false)}>Cancel</Button><Button onClick={handleSaveSubcategory}>Save</Button></div>
                 </div>
-              </CardContent>
-            </Card>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
-
         </Tabs>
       </div>
     </Layout>

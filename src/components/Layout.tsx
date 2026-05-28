@@ -1,6 +1,6 @@
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { supabase, User } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { LogOut, Sun, LayoutDashboard, Package, ArrowLeftRight, Settings, BarChart3, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -13,41 +13,22 @@ const Layout = ({ children }: LayoutProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { user, loading, logout } = useAuth();
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      if (!session?.user) {
-        navigate("/auth");
-      }
-    });
+    if (!loading && !user) {
+      navigate("/auth");
+    }
+  }, [user, loading, navigate]);
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (!session?.user) {
-        navigate("/auth");
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    toast({
-      title: "Signed out",
-      description: "You have been signed out successfully.",
-    });
+  const handleSignOut = () => {
+    logout();
+    toast({ title: "Signed out", description: "You have been signed out successfully." });
     navigate("/auth");
   };
 
   const isActiveRoute = (path: string) => {
-    if (path === "/") {
-      return location.pathname === "/";
-    }
+    if (path === "/") return location.pathname === "/";
     return location.pathname.startsWith(path);
   };
 
@@ -59,13 +40,10 @@ const Layout = ({ children }: LayoutProps) => {
     );
   }
 
-  if (!user) {
-    return null;
-  }
+  if (!user) return null;
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
       <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/30 sticky top-0 z-50">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -77,67 +55,35 @@ const Layout = ({ children }: LayoutProps) => {
               <p className="text-[10px] text-muted-foreground">Inventory Management</p>
             </div>
           </div>
-          
+
           <nav className="hidden md:flex items-center gap-1">
-            <Button
-              variant={isActiveRoute("/") ? "default" : "ghost"}
-              size="sm"
-              onClick={() => navigate("/")}
-              className="h-8 text-xs"
-            >
-              <LayoutDashboard className="w-3.5 h-3.5 mr-1.5" />
-              Dashboard
-            </Button>
-            <Button
-              variant={isActiveRoute("/items") ? "default" : "ghost"}
-              size="sm"
-              onClick={() => navigate("/items")}
-              className="h-8 text-xs"
-            >
-              <Package className="w-3.5 h-3.5 mr-1.5" />
-              Stock Items
-            </Button>
-            <Button
-              variant={isActiveRoute("/stock-balance") ? "default" : "ghost"}
-              size="sm"
-              onClick={() => navigate("/stock-balance")}
-              className="h-8 text-xs"
-            >
-              <BarChart3 className="w-3.5 h-3.5 mr-1.5" />
-              Stock Balance
-            </Button>
-            <Button
-              variant={isActiveRoute("/transactions") ? "default" : "ghost"}
-              size="sm"
-              onClick={() => navigate("/transactions")}
-              className="h-8 text-xs"
-            >
-              <ArrowLeftRight className="w-3.5 h-3.5 mr-1.5" />
-              Transactions
-            </Button>
-            <Button
-              variant={isActiveRoute("/import") ? "default" : "ghost"}
-              size="sm"
-              onClick={() => navigate("/import")}
-              className="h-8 text-xs"
-            >
-              <Upload className="w-3.5 h-3.5 mr-1.5" />
-              Import
-            </Button>
-            <Button
-              variant={isActiveRoute("/admin") ? "default" : "ghost"}
-              size="sm"
-              onClick={() => navigate("/admin")}
-              className="h-8 text-xs"
-            >
-              <Settings className="w-3.5 h-3.5 mr-1.5" />
-              Admin
-            </Button>
+            {[
+              { path: "/", label: "Dashboard", Icon: LayoutDashboard },
+              { path: "/items", label: "Stock Items", Icon: Package },
+              { path: "/stock-balance", label: "Stock Balance", Icon: BarChart3 },
+              { path: "/transactions", label: "Transactions", Icon: ArrowLeftRight },
+              { path: "/import", label: "Import", Icon: Upload },
+              { path: "/admin", label: "Admin", Icon: Settings },
+            ].map(({ path, label, Icon }) => (
+              <Button
+                key={path}
+                variant={isActiveRoute(path) ? "default" : "ghost"}
+                size="sm"
+                onClick={() => navigate(path)}
+                className="h-8 text-xs"
+              >
+                <Icon className="w-3.5 h-3.5 mr-1.5" />
+                {label}
+              </Button>
+            ))}
           </nav>
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground hidden sm:inline">
-              {user?.email}
+              {user.email}
+              {user.role !== 'inventory_clerk' && (
+                <span className="ml-1 text-[10px] text-primary capitalize">({user.role})</span>
+              )}
             </span>
             <Button variant="outline" size="sm" onClick={handleSignOut} className="h-8 text-xs">
               <LogOut className="w-3.5 h-3.5 mr-1.5" />
@@ -147,10 +93,7 @@ const Layout = ({ children }: LayoutProps) => {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-4">
-        {children}
-      </main>
+      <main className="container mx-auto px-4 py-4">{children}</main>
     </div>
   );
 };

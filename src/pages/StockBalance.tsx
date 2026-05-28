@@ -1,5 +1,5 @@
- import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { useEffect, useState } from "react";
+import { stockBalance as sbApi } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -7,179 +7,30 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Package, TrendingUp, DollarSign, AlertTriangle, Eye, Plus, Minus } from "lucide-react";
-
-interface Item {
-  id: string;
-  name: string;
-  sku: string;
-  cost_price: number;
-  low_stock_threshold: number;
-  categories?: {
-    name: string;
-  };
-  subcategories?: {
-    name: string;
-  };
-}
-
-interface TransactionItem {
-  id: string;
-  quantity: number;
-  unit_price: number;
-  total_price: number;
-  transactions: {
-    id: string;
-    transaction_type: 'purchase' | 'sale' | 'adjustment';
-    transaction_date: string;
-    reference_number: string;
-    customer_supplier_name: string;
-  };
-}
-
-interface ItemWithTransactions {
-  item: Item;
-  transactions: TransactionItem[];
-  runningBalance: number[];
-}
-
-interface BalanceSummary {
-  totalItems: number;
-  totalValue: number;
-  totalCost: number;
-  lowStockItems: number;
-  outOfStockItems: number;
-}
+import { Package, TrendingUp, DollarSign, AlertTriangle, Plus, Minus } from "lucide-react";
 
 const StockBalance = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [itemsWithTransactions, setItemsWithTransactions] = useState<ItemWithTransactions[]>([]);
-  const [summary, setSummary] = useState<BalanceSummary>({
-    totalItems: 0,
-    totalValue: 0,
-    totalCost: 0,
-    lowStockItems: 0,
-    outOfStockItems: 0,
-  });
+  const [balances, setBalances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchStockBalance();
+    sbApi.list({ limit: "500" })
+      .then((res) => setBalances(res.balances || []))
+      .catch((err) => toast({ variant: "destructive", title: "Error", description: err.message }))
+      .finally(() => setLoading(false));
   }, []);
 
-  const fetchStockBalance = async () => {
-    try {
-      // First get all items
-      const { data: itemsData, error: itemsError } = await supabase
-        .from('items')
-        .select('*, categories(name), subcategories(name)')
-        .order('name');
+  const totalItems = balances.length;
+  const totalValue = balances.reduce((s, b) => s + (b.inventoryValue || 0), 0);
+  const totalCost = balances.reduce((s, b) => s + (b.inventoryValue || 0), 0);
+  const lowStockItems = balances.filter((b) => b.isLowStock && b.quantity > 0).length;
+  const outOfStockItems = balances.filter((b) => b.quantity === 0).length;
 
-      if (itemsError) throw itemsError;
-
-      const items = itemsData || [];
-
-      // For each item, get its transaction history
-      const itemsWithTransactionsData: ItemWithTransactions[] = [];
-
-      for (const item of items) {
-        const { data: transactionsData, error: transError } = await supabase
-          .from('transaction_items')
-          .select(`
-            id,
-            quantity,
-            unit_price,
-            total_price,
-            transactions (
-              id,
-              transaction_type,
-              transaction_date,
-              reference_number,
-              customer_supplier_name
-            )
-          `)
-          .eq('item_id', item.id)
-          .order('transactions(transaction_date)', { ascending: true });
-
-        if (transError) throw transError;
-
-        const transactions = transactionsData || [];
-
-        // Calculate running balance starting from 0 and working forwards
-        let currentBalance = 0;
-        const runningBalances: number[] = [];
-
-        // Work forwards from 0 balance
-        for (let i = 0; i < transactions.length; i++) {
-          if (transactions[i].transactions.transaction_type === 'purchase') {
-            currentBalance += transactions[i].quantity;
-          } else if (transactions[i].transactions.transaction_type === 'sale') {
-            currentBalance -= transactions[i].quantity;
-          } else if (transactions[i].transactions.transaction_type === 'adjustment') {
-            currentBalance += transactions[i].quantity; // adjustments can be positive or negative
-          }
-          runningBalances.push(currentBalance);
-        }
-
-        itemsWithTransactionsData.push({
-          item,
-          transactions,
-          runningBalance: runningBalances,
-        });
-      }
-
-      setItemsWithTransactions(itemsWithTransactionsData);
-
-      // Calculate summary
-      let totalValue = 0;
-      let totalCost = 0;
-      let lowStockItems = 0;
-      let outOfStockItems = 0;
-
-      for (const itemWithTrans of itemsWithTransactionsData) {
-        const currentBalance = itemWithTrans.runningBalance.length > 0
-          ? itemWithTrans.runningBalance[itemWithTrans.runningBalance.length - 1]
-          : 0;
-
-        // For totalValue, use the last transaction's unit_price if available
-        const lastTransaction = itemWithTrans.transactions[itemWithTrans.transactions.length - 1];
-        if (lastTransaction) {
-          totalValue += currentBalance * lastTransaction.unit_price;
-        }
-
-        totalCost += currentBalance * itemWithTrans.item.cost_price;
-
-        if (currentBalance === 0) {
-          outOfStockItems++;
-        } else if (currentBalance <= itemWithTrans.item.low_stock_threshold) {
-          lowStockItems++;
-        }
-      }
-
-      const summaryData: BalanceSummary = {
-        totalItems: items.length,
-        totalValue,
-        totalCost,
-        lowStockItems,
-        outOfStockItems,
-      };
-
-      setSummary(summaryData);
-      setLoading(false);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error fetching stock balance",
-        description: error.message,
-      });
-      setLoading(false);
-    }
-  };
-
-  const getStockStatus = (balance: number, lowStockThreshold: number) => {
-    if (balance === 0) return { status: "Out of Stock", variant: "destructive" as const };
-    if (balance <= lowStockThreshold) return { status: "Low Stock", variant: "secondary" as const };
+  const getStockStatus = (b: any) => {
+    if (b.quantity === 0) return { status: "Out of Stock", variant: "destructive" as const };
+    if (b.isLowStock) return { status: "Low Stock", variant: "secondary" as const };
     return { status: "In Stock", variant: "default" as const };
   };
 
@@ -201,168 +52,96 @@ const StockBalance = () => {
           <p className="text-muted-foreground">Complete inventory balance and valuation overview</p>
         </div>
 
-        {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Items</CardTitle>
               <Package className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{summary.totalItems}</div>
-              <p className="text-xs text-muted-foreground">Active inventory items</p>
-            </CardContent>
+            <CardContent><div className="text-2xl font-bold">{totalItems}</div><p className="text-xs text-muted-foreground">Active inventory items</p></CardContent>
           </Card>
-
           <Card className="shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Value</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Value (Cost)</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">ETB {summary.totalValue.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Current market value</p>
-            </CardContent>
+            <CardContent><div className="text-2xl font-bold">ETB {totalValue.toLocaleString()}</div><p className="text-xs text-muted-foreground">At cost price</p></CardContent>
           </Card>
-
           <Card className="shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Cost</CardTitle>
+              <CardTitle className="text-sm font-medium">Retail Value</CardTitle>
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">ETB {summary.totalCost.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Total acquisition cost</p>
+              <div className="text-2xl font-bold">ETB {balances.reduce((s, b) => s + (b.retailValue || 0), 0).toLocaleString()}</div>
+              <p className="text-xs text-muted-foreground">At unit price</p>
             </CardContent>
           </Card>
-
           <Card className="shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Stock Alerts</CardTitle>
               <AlertTriangle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{summary.lowStockItems + summary.outOfStockItems}</div>
-              <p className="text-xs text-muted-foreground">
-                {summary.lowStockItems} low + {summary.outOfStockItems} out
-              </p>
+              <div className="text-2xl font-bold text-orange-600">{lowStockItems + outOfStockItems}</div>
+              <p className="text-xs text-muted-foreground">{lowStockItems} low + {outOfStockItems} out</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Transaction History Table */}
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle className="text-lg">Stock Transaction History</CardTitle>
-            <CardDescription>Complete transaction history for all inventory items with running balances</CardDescription>
+            <CardTitle className="text-lg">Stock Balance Summary</CardTitle>
+            <CardDescription>Current quantity and value for all inventory items</CardDescription>
           </CardHeader>
           <CardContent>
-            {itemsWithTransactions.length === 0 ? (
+            {balances.length === 0 ? (
               <div className="text-center py-8">
                 <Package className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No items in inventory</h3>
-                <p className="text-muted-foreground mb-4">Start by adding your first inventory item</p>
-                <Button onClick={() => navigate('/items')}>
-                  Go to Items Management
-                </Button>
+                <Button onClick={() => navigate('/items')}>Go to Items Management</Button>
               </div>
             ) : (
-              <div className="space-y-6">
-                {itemsWithTransactions.map((itemWithTrans) => {
-                  const { item, transactions, runningBalance } = itemWithTrans;
-                  const currentBalance = runningBalance.length > 0 ? runningBalance[runningBalance.length - 1] : 0;
-                  const stockStatus = getStockStatus(currentBalance, item.low_stock_threshold);
-
-                  return (
-                    <div key={item.id} className="border rounded-lg overflow-hidden">
-                      <div className="bg-muted/50 px-4 py-3 border-b">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-semibold">{item.name}</h4>
-                            <p className="text-sm text-muted-foreground font-mono">{item.sku}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {item.categories?.name || "Uncategorized"}
-                              {item.subcategories?.name && ` > ${item.subcategories.name}`}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <Badge variant={stockStatus.variant} className="text-xs mb-1">
-                              {stockStatus.status}
-                            </Badge>
-                            <div className="text-sm">
-                              Current Balance: <span className="font-semibold">{currentBalance}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {transactions.length === 0 ? (
-                        <div className="text-center py-4 text-muted-foreground">
-                          No transactions yet
-                        </div>
-                      ) : (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="h-9 text-xs">Date</TableHead>
-                              <TableHead className="h-9 text-xs">Type</TableHead>
-                              <TableHead className="h-9 text-xs">Reference</TableHead>
-                              <TableHead className="h-9 text-xs">Customer/Supplier</TableHead>
-                              <TableHead className="h-9 text-xs text-right">Qty In</TableHead>
-                              <TableHead className="h-9 text-xs text-right">Qty Out</TableHead>
-                              <TableHead className="h-9 text-xs text-right">Balance</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {transactions.map((transaction, index) => (
-                              <TableRow key={transaction.id}>
-                                <TableCell className="py-2 text-sm">
-                                  {new Date(transaction.transactions.transaction_date).toLocaleDateString()}
-                                </TableCell>
-                                <TableCell className="py-2">
-                                  <Badge
-                                    variant={transaction.transactions.transaction_type === 'purchase' ? 'default' : 'secondary'}
-                                    className="gap-1 text-xs"
-                                  >
-                                    {transaction.transactions.transaction_type === 'purchase' ? (
-                                      <Plus className="h-3 w-3" />
-                                    ) : (
-                                      <Minus className="h-3 w-3" />
-                                    )}
-                                    {transaction.transactions.transaction_type.charAt(0).toUpperCase() + transaction.transactions.transaction_type.slice(1)}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="py-2 font-mono text-xs">
-                                  {transaction.transactions.reference_number}
-                                </TableCell>
-                                <TableCell className="py-2 text-sm">
-                                  {transaction.transactions.customer_supplier_name}
-                                </TableCell>
-                                <TableCell className="py-2 text-right">
-                                  {transaction.transactions.transaction_type === 'purchase' ? (
-                                    <span className="text-green-600 font-semibold">{transaction.quantity}</span>
-                                  ) : (
-                                    ''
-                                  )}
-                                </TableCell>
-                                <TableCell className="py-2 text-right">
-                                  {transaction.transactions.transaction_type === 'sale' ? (
-                                    <span className="text-red-600 font-semibold">{transaction.quantity}</span>
-                                  ) : (
-                                    ''
-                                  )}
-                                </TableCell>
-                                <TableCell className="py-2 text-right font-semibold">
-                                  {runningBalance[index] >= 0 ? runningBalance[index] : '—'}
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      )}
-                    </div>
-                  );
-                })}
+              <div className="border rounded-lg overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="h-9 text-xs">SKU</TableHead>
+                      <TableHead className="h-9 text-xs">Name</TableHead>
+                      <TableHead className="h-9 text-xs">Category</TableHead>
+                      <TableHead className="h-9 text-xs">UOM</TableHead>
+                      <TableHead className="h-9 text-xs text-right">Quantity</TableHead>
+                      <TableHead className="h-9 text-xs text-right">Cost Price</TableHead>
+                      <TableHead className="h-9 text-xs text-right">Inventory Value</TableHead>
+                      <TableHead className="h-9 text-xs">Status</TableHead>
+                      <TableHead className="h-9 text-xs text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {balances.map((b: any) => {
+                      const ss = getStockStatus(b);
+                      return (
+                        <TableRow key={b.id}>
+                          <TableCell className="font-mono text-xs py-2">{b.sku}</TableCell>
+                          <TableCell className="font-medium text-sm py-2">
+                            <button onClick={() => navigate(`/stock-card/${b.id}`)} className="hover:text-primary hover:underline text-left">{b.name}</button>
+                          </TableCell>
+                          <TableCell className="text-sm py-2">{b.category?.name || '-'}</TableCell>
+                          <TableCell className="text-sm py-2">{b.uom || '-'}</TableCell>
+                          <TableCell className="text-right text-sm py-2 font-medium">
+                            {b.quantity > 0 ? <span className="text-green-600">{b.quantity.toLocaleString()}</span> : <span className="text-red-600">0</span>}
+                          </TableCell>
+                          <TableCell className="text-right text-sm py-2">ETB {(b.costPrice || 0).toFixed(2)}</TableCell>
+                          <TableCell className="text-right text-sm py-2 font-medium">ETB {(b.inventoryValue || 0).toLocaleString()}</TableCell>
+                          <TableCell className="py-2"><Badge variant={ss.variant} className="text-xs">{ss.status}</Badge></TableCell>
+                          <TableCell className="text-right py-2">
+                            <Button variant="ghost" size="sm" onClick={() => navigate(`/stock-card/${b.id}`)} className="h-7 text-xs">View Card</Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </CardContent>

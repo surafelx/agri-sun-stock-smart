@@ -1,141 +1,36 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/lib/supabase";
+import { items as itemsApi, normalizeItem } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
+import { ArrowLeft, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-
-interface Item {
-  id: string;
-  name: string;
-  sku: string;
-  category: string;
-  cost_price: number;
-}
-
-interface StockMovement {
-  id: string;
-  date: string;
-  reference: string;
-  type: 'purchase' | 'sale' | 'adjustment';
-  quantity_in: number;
-  quantity_out: number;
-  balance: number;
-  unit_price: number;
-  value_in: number;
-  value_out: number;
-  notes: string;
-  customer_supplier: string;
-}
 
 const StockCard = () => {
   const { itemId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [item, setItem] = useState<Item | null>(null);
-  const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [item, setItem] = useState<any>(null);
+  const [movements, setMovements] = useState<any[]>([]);
+  const [currentBalance, setCurrentBalance] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (itemId) {
-      fetchStockCard();
-    }
+    if (itemId) fetchStockCard();
   }, [itemId]);
 
   const fetchStockCard = async () => {
     try {
-      // Fetch item details
-      const { data: itemData, error: itemError } = await supabase
-        .from('items')
-        .select('*, categories(name)')
-        .eq('id', itemId)
-        .maybeSingle();
-
-      if (itemError) throw itemError;
-
-      // Transform the data to match the interface
-      const transformedItem = {
-        ...itemData,
-        category: itemData.categories?.name || 'Uncategorized'
-      };
-
-      setItem(transformedItem);
-
-      // Fetch transaction items for this item
-      const { data: transactionItems, error: transError } = await supabase
-        .from('transaction_items')
-        .select(`
-          *,
-          transactions!inner(
-            transaction_type,
-            transaction_date,
-            reference_number,
-            customer_supplier_name,
-            notes
-          )
-        `)
-        .eq('item_id', itemId)
-        .order('transactions(transaction_date)', { ascending: true });
-
-      if (transError) throw transError;
-
-      // Calculate running balance
-      let runningBalance = 0;
-      const movementsData: StockMovement[] = [];
-
-      // Add opening balance if there are transactions
-      if (transactionItems.length > 0) {
-        movementsData.push({
-          id: 'opening',
-          date: new Date().toISOString().split('T')[0], // Today's date for opening
-          reference: 'Opening Balance',
-          type: 'adjustment',
-          quantity_in: 0,
-          quantity_out: 0,
-          balance: 0,
-          unit_price: 0,
-          value_in: 0,
-          value_out: 0,
-          notes: 'Opening balance',
-          customer_supplier: 'System',
-        });
-      }
-
-      transactionItems.forEach((ti: any) => {
-        const transaction = ti.transactions;
-        const quantityIn = transaction.transaction_type === 'purchase' ? ti.quantity : 0;
-        const quantityOut = transaction.transaction_type === 'sale' ? ti.quantity : 0;
-
-        runningBalance += quantityIn - quantityOut;
-
-        movementsData.push({
-          id: ti.id,
-          date: transaction.transaction_date,
-          reference: transaction.reference_number,
-          type: transaction.transaction_type,
-          quantity_in: quantityIn,
-          quantity_out: quantityOut,
-          balance: runningBalance,
-          unit_price: ti.unit_price,
-          value_in: quantityIn * ti.unit_price,
-          value_out: quantityOut * ti.unit_price,
-          notes: transaction.notes || '',
-          customer_supplier: transaction.customer_supplier_name || 'N/A',
-        });
-      });
-
-      setMovements(movementsData);
-      setLoading(false);
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error loading stock card",
-        description: error.message,
-      });
+      const res = await itemsApi.stockCard(itemId!);
+      setItem(normalizeItem(res.item));
+      setMovements(res.movements || []);
+      setCurrentBalance(res.currentBalance ?? 0);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error loading stock card", description: err.message });
+    } finally {
       setLoading(false);
     }
   };
@@ -169,10 +64,7 @@ const StockCard = () => {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/items')}>
-              <ArrowLeft className="w-4 h-4 mr-1" />
-              Back
-            </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate('/items')}><ArrowLeft className="w-4 h-4 mr-1" />Back</Button>
             <div>
               <h2 className="text-2xl font-bold">Stock Card - Balance Sheet</h2>
               <p className="text-sm text-muted-foreground">Inventory ledger and balance tracking</p>
@@ -180,41 +72,35 @@ const StockCard = () => {
           </div>
         </div>
 
-        {/* Item Details Card */}
         <Card className="shadow-card">
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between">
               <div>
                 <CardTitle className="text-lg">{item.name}</CardTitle>
-                <CardDescription className="text-sm">SKU: {item.sku} • Category: {item.category}</CardDescription>
+                <CardDescription className="text-sm">
+                  SKU: {item.sku} • Category: {item.categories?.name || "Uncategorized"}
+                </CardDescription>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold">{movements.length > 0 ? movements[movements.length - 1].balance : 0}</div>
+                <div className="text-2xl font-bold">{currentBalance}</div>
                 <p className="text-xs text-muted-foreground">Current Balance</p>
               </div>
             </div>
           </CardHeader>
           <CardContent className="pt-0">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-              <div>
-                <p className="text-muted-foreground text-xs">Cost Price</p>
-                <p className="font-semibold">ETB {item.cost_price}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-xs">Total Movements</p>
-                <p className="font-semibold">{movements.length}</p>
-              </div>
+              <div><p className="text-muted-foreground text-xs">Cost Price</p><p className="font-semibold">ETB {item.cost_price}</p></div>
+              <div><p className="text-muted-foreground text-xs">Total Movements</p><p className="font-semibold">{movements.length}</p></div>
               <div>
                 <p className="text-muted-foreground text-xs">Status</p>
-                <Badge variant={(movements.length > 0 ? movements[movements.length - 1].balance : 0) > 0 ? "secondary" : "destructive"} className="text-xs">
-                  {(movements.length > 0 ? movements[movements.length - 1].balance : 0) > 0 ? "In Stock" : "Out of Stock"}
+                <Badge variant={currentBalance > 0 ? "secondary" : "destructive"} className="text-xs">
+                  {currentBalance > 0 ? "In Stock" : "Out of Stock"}
                 </Badge>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Transaction History */}
         <Card className="shadow-card">
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Stock Ledger</CardTitle>
@@ -241,30 +127,25 @@ const StockCard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {movements.map((movement) => (
-                      <TableRow key={movement.id}>
+                    {movements.map((mv, idx) => (
+                      <TableRow key={mv.id || idx}>
                         <TableCell className="py-2 text-xs">
-                          {new Date(movement.date).toLocaleDateString('en-US', {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          })}
+                          {new Date(mv.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                         </TableCell>
                         <TableCell className="py-2 text-xs">
-                          {movement.id === 'opening' ? 'Opening Balance' : `${movement.type.charAt(0).toUpperCase() + movement.type.slice(1)} - ${movement.customer_supplier}`}
+                          {mv.type?.charAt(0).toUpperCase() + mv.type?.slice(1)}
+                          {mv.customerSupplier ? ` — ${mv.customerSupplier}` : ''}
                         </TableCell>
-                        <TableCell className="py-2 font-mono text-xs">{movement.reference}</TableCell>
+                        <TableCell className="py-2 font-mono text-xs">{mv.reference}</TableCell>
                         <TableCell className="py-2 text-right text-xs">
-                          {movement.quantity_in > 0 ? `${movement.quantity_in} @ ETB ${movement.unit_price}` : '-'}
-                        </TableCell>
-                        <TableCell className="py-2 text-right text-xs">
-                          {movement.quantity_out > 0 ? `${movement.quantity_out} @ ETB ${movement.unit_price}` : '-'}
-                        </TableCell>
-                        <TableCell className="py-2 text-right font-bold text-sm">
-                          {movement.balance}
+                          {mv.quantityIn > 0 ? `${mv.quantityIn} @ ETB ${mv.unitPrice}` : '-'}
                         </TableCell>
                         <TableCell className="py-2 text-right text-xs">
-                          ETB {(movement.value_in - movement.value_out).toFixed(2)}
+                          {mv.quantityOut > 0 ? `${mv.quantityOut} @ ETB ${mv.unitPrice}` : '-'}
+                        </TableCell>
+                        <TableCell className="py-2 text-right font-bold text-sm">{mv.balance}</TableCell>
+                        <TableCell className="py-2 text-right text-xs">
+                          ETB {(mv.valueIn - mv.valueOut).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))}
