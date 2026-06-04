@@ -215,7 +215,7 @@ const Transactions = () => {
       return matchCat && matchSub;
     });
 
-  const ItemRowForm = ({ formState, setFormState }: { formState: typeof formData; setFormState: (f: any) => void }) => (
+  const renderItemRows = (formState: typeof formData, setFormState: (f: any) => void) => (
     <div className="space-y-3">
       {formState.items.map((item, index) => (
         <div key={index} className="grid grid-cols-5 gap-2 items-end">
@@ -286,7 +286,7 @@ const Transactions = () => {
                     <h4 className="font-semibold">Line Items</h4>
                     <Button type="button" variant="outline" size="sm" onClick={() => setFormData({ ...formData, items: [...formData.items, emptyItem()] })}><Plus className="h-4 w-4 mr-1" />Add Item</Button>
                   </div>
-                  <ItemRowForm formState={formData} setFormState={setFormData} />
+                  {renderItemRows(formData, setFormData)}
                 </div>
                 <div className="flex justify-end gap-2 pt-4">
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
