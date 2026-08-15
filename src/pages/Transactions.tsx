@@ -286,6 +286,7 @@ const Transactions = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Contact</Label><Input value={formData.contact} onChange={(e) => setFormData({ ...formData, contact: e.target.value })} placeholder="Phone or email" /></div>
                   <div className="space-y-2"><Label>Notes</Label><Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} /></div>
+                </div>
                 <div className="border-t pt-4">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-semibold">Line Items</h4>
