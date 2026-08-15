@@ -33,6 +33,7 @@ const Transactions = () => {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingTx, setEditingTx] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const defaultForm = { type: "purchase" as TxType, reference: "", customerSupplier: "", contact: "", notes: "", date: new Date().toISOString().split('T')[0], items: [emptyItem()] };
   const [formData, setFormData] = useState(defaultForm);
@@ -74,6 +75,7 @@ const Transactions = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
     try {
       const lineItems = formData.items.filter((i) => i.itemId && i.quantity && i.unitPrice).map((i) => ({
         item: i.itemId, quantity: parseFloat(i.quantity), unitPrice: parseFloat(i.unitPrice),
@@ -95,12 +97,15 @@ const Transactions = () => {
       fetchAll();
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error creating transaction", description: err.message });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingTx) return;
+    setSubmitting(true);
     try {
       await txApi.update(editingTx.id, {
         transactionDate: editFormData.date,
@@ -115,6 +120,8 @@ const Transactions = () => {
       fetchAll();
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error updating transaction", description: err.message });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -296,7 +303,7 @@ const Transactions = () => {
                 </div>
                 <div className="flex justify-end gap-2 pt-4">
                   <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                  <Button type="submit">Create Transaction</Button>
+                  <Button type="submit" disabled={submitting}>{submitting ? "Creating..." : "Create Transaction"}</Button>
                 </div>
               </form>
             </DialogContent>
@@ -386,7 +393,7 @@ const Transactions = () => {
             <div className="space-y-1"><Label>Notes</Label><Textarea value={editFormData.notes} onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })} rows={2} /></div>
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-              <Button type="submit">Update</Button>
+              <Button type="submit" disabled={submitting}>{submitting ? "Updating..." : "Update"}</Button>
             </div>
           </form>
         </DialogContent>
