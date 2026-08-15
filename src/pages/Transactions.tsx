@@ -288,6 +288,7 @@ const Transactions = () => {
                     </Select>
                   </div>
                   <div className="space-y-1"><Label>Reference Number *</Label><Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder="e.g., INV-2024-001" required /></div>
+                  <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2"><Label>{formData.type === 'purchase' ? 'Supplier' : 'Customer'} Name *</Label><Input value={formData.customerSupplier} onChange={(e) => setFormData({ ...formData, customerSupplier: e.target.value })} required /></div>
