@@ -34,7 +34,7 @@ const Transactions = () => {
   const [editingTx, setEditingTx] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const defaultForm = { type: "purchase" as TxType, reference: "", customerSupplier: "", contact: "", notes: "", items: [emptyItem()] };
+  const defaultForm = { type: "purchase" as TxType, reference: "", customerSupplier: "", contact: "", notes: "", date: new Date().toISOString().split('T')[0], items: [emptyItem()] };
   const [formData, setFormData] = useState(defaultForm);
   const [editFormData, setEditFormData] = useState(defaultForm);
 
@@ -82,6 +82,7 @@ const Transactions = () => {
 
       await txApi.create({
         transactionType: formData.type,
+        transactionDate: formData.date,
         referenceNumber: formData.reference,
         customerSupplierName: formData.customerSupplier,
         customerSupplierContact: formData.contact || undefined,
@@ -102,6 +103,7 @@ const Transactions = () => {
     if (!editingTx) return;
     try {
       await txApi.update(editingTx.id, {
+        transactionDate: editFormData.date,
         referenceNumber: editFormData.reference,
         customerSupplierName: editFormData.customerSupplier,
         customerSupplierContact: editFormData.contact || null,
@@ -135,6 +137,7 @@ const Transactions = () => {
       customerSupplier: tx.customer_supplier_name || "",
       contact: tx.customer_supplier_contact || "",
       notes: tx.notes || "",
+      date: tx.transaction_date ? new Date(tx.transaction_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       items: [emptyItem()],
     });
     setEditDialogOpen(true);
@@ -276,11 +279,13 @@ const Transactions = () => {
                   </div>
                   <div className="space-y-1"><Label>Reference Number *</Label><Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder="e.g., INV-2024-001" required /></div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required /></div>
                   <div className="space-y-2"><Label>{formData.type === 'purchase' ? 'Supplier' : 'Customer'} Name *</Label><Input value={formData.customerSupplier} onChange={(e) => setFormData({ ...formData, customerSupplier: e.target.value })} required /></div>
-                  <div className="space-y-2"><Label>Contact</Label><Input value={formData.contact} onChange={(e) => setFormData({ ...formData, contact: e.target.value })} placeholder="Phone or email" /></div>
                 </div>
-                <div className="space-y-2"><Label>Notes</Label><Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Contact</Label><Input value={formData.contact} onChange={(e) => setFormData({ ...formData, contact: e.target.value })} placeholder="Phone or email" /></div>
+                  <div className="space-y-2"><Label>Notes</Label><Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} /></div>
                 <div className="border-t pt-4">
                   <div className="flex items-center justify-between mb-3">
                     <h4 className="font-semibold">Line Items</h4>
@@ -373,9 +378,10 @@ const Transactions = () => {
           <form onSubmit={handleEditSubmit} className="space-y-3">
             <div className="space-y-1"><Label>Reference Number *</Label><Input value={editFormData.reference} onChange={(e) => setEditFormData({ ...editFormData, reference: e.target.value })} required /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Customer/Supplier</Label><Input value={editFormData.customerSupplier} onChange={(e) => setEditFormData({ ...editFormData, customerSupplier: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={editFormData.date} onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })} required /></div>
               <div className="space-y-1"><Label>Contact</Label><Input value={editFormData.contact} onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })} /></div>
             </div>
+            <div className="space-y-1"><Label>Customer/Supplier</Label><Input value={editFormData.customerSupplier} onChange={(e) => setEditFormData({ ...editFormData, customerSupplier: e.target.value })} /></div>
             <div className="space-y-1"><Label>Notes</Label><Textarea value={editFormData.notes} onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })} rows={2} /></div>
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
