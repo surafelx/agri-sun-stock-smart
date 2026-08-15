@@ -40,6 +40,7 @@ export function normalizeTransaction(txn: any): any {
     reference_number: txn.referenceNumber || txn.reference_number,
     customer_supplier_name: txn.customerSupplierName || txn.customer_supplier_name,
     customer_supplier_contact: txn.customerSupplierContact ?? txn.customer_supplier_contact ?? null,
+    tin_no: txn.tinNo ?? txn.tin_no ?? null,
     total_amount: txn.totalAmount ?? txn.total_amount ?? 0,
     notes: txn.notes ?? null,
     created_at: txn.createdAt || txn.created_at,
