@@ -278,7 +278,7 @@ const Transactions = () => {
           <div><h2 className="text-2xl font-bold tracking-tight">Transactions</h2><p className="text-sm text-muted-foreground">Record purchases and sales</p></div>
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setFormData(defaultForm); }}>
             <DialogTrigger asChild><Button size="sm"><Plus className="mr-1.5 h-4 w-4" />New Transaction</Button></DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle className="text-lg">Create Transaction</DialogTitle><DialogDescription className="text-sm">Record a new purchase or sale</DialogDescription></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
@@ -301,7 +301,7 @@ const Transactions = () => {
                   <div className="space-y-2"><Label>Notes</Label><Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} /></div>
                 </div>
                 <div className="border-t pt-4">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3 mb-3">
                     <h4 className="font-semibold">Line Items</h4>
                     <Button type="button" variant="outline" size="sm" onClick={() => setFormData({ ...formData, items: [...formData.items, emptyItem()] })}><Plus className="h-4 w-4 mr-1" />Add Item</Button>
                   </div>
