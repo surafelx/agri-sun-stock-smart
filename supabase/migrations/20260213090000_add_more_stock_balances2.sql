@@ -218,9 +218,9 @@ SET
   parameters = '{"power": "2200W", "flow_rate": "8.5m³/h", "head": "60m", "type": "Surface Pump", "stock_code": "01-01-010"}'::jsonb
 WHERE name = 'Solar Surface Pump 4SPW8.5-60-450-2200AD';
 
--- Transaction 1: 6 units @ 107,414.73 (ref: 4-011947-1, date: 03/06/2025)
+-- Transaction 1: 6 units @ 107,414.73 (ref: 4-011947-1, date: 07/08/2025)
 INSERT INTO public.transactions (transaction_type, transaction_date, reference_number, customer_supplier_name, notes, total_amount, created_by)
-SELECT 'purchase'::transaction_type, '2025-06-03'::timestamptz, '4-011947-1', 'Purchase', 'Stock purchase', 644488.38::decimal, (SELECT id FROM auth.users LIMIT 1);
+SELECT 'purchase'::transaction_type, '2025-07-08'::timestamptz, '4-011947-1', 'Purchase', 'Stock purchase', 644488.38::decimal, (SELECT id FROM auth.users LIMIT 1);
 
 DO $$
 DECLARE v_transaction_id UUID; v_item_id UUID;
@@ -233,9 +233,9 @@ BEGIN
   END IF;
 END $$;
 
--- Transaction 2: OUT 3 (CRV-13 & 14/17, date: 03/06/2025)
+-- Transaction 2: OUT 3 (CRV-13 & 14/17, date: 07/08/2025)
 INSERT INTO public.transactions (transaction_type, transaction_date, reference_number, customer_supplier_name, notes, total_amount, created_by)
-SELECT 'sale'::transaction_type, '2025-06-03'::timestamptz, 'CRV-13-14-17', 'Stock Adjustment', 'Stock adjustment', 322244.19::decimal, (SELECT id FROM auth.users LIMIT 1);
+SELECT 'sale'::transaction_type, '2025-07-08'::timestamptz, 'CRV-13-14-17', 'Stock Adjustment', 'Stock adjustment', 322244.19::decimal, (SELECT id FROM auth.users LIMIT 1);
 
 DO $$
 DECLARE v_transaction_id UUID; v_item_id UUID;

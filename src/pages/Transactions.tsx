@@ -231,7 +231,7 @@ const Transactions = () => {
   const renderItemRows = (formState: typeof formData, setFormState: (f: any) => void) => (
     <div className="space-y-3">
       {formState.items.map((item, index) => (
-        <div key={index} className="grid grid-cols-5 gap-2 items-end">
+        <div key={index} className="grid grid-cols-6 gap-2 items-end">
           <div className="space-y-2">
             <Label>Category</Label>
             <Select value={item.categoryId} onValueChange={(v) => setFormState({ ...formState, items: updateFormItem(formState, index, 'categoryId', v) })}>
@@ -260,8 +260,10 @@ const Transactions = () => {
           <div className="space-y-2">
             <Label>Unit Price</Label>
             <Input type="number" step="0.01" value={item.unitPrice} onChange={(e) => setFormState({ ...formState, items: updateFormItem(formState, index, 'unitPrice', e.target.value) })} placeholder="0.00" />
-            <Button type="button" variant="ghost" size="sm" onClick={() => setFormState({ ...formState, items: formState.items.filter((_, i) => i !== index) })} disabled={formState.items.length === 1} className="mt-1">
-              <Trash2 className="h-4 w-4" />
+          </div>
+          <div className="flex items-end pb-0.5">
+            <Button type="button" variant="ghost" size="sm" onClick={() => setFormState({ ...formState, items: formState.items.filter((_, i) => i !== index) })} disabled={formState.items.length === 1} className="h-9 w-9 p-0">
+              <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
           </div>
         </div>
