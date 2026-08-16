@@ -261,10 +261,15 @@ const Transactions = () => {
             <Label>Unit Price</Label>
             <Input type="number" step="0.01" value={item.unitPrice} onChange={(e) => setFormState({ ...formState, items: updateFormItem(formState, index, 'unitPrice', e.target.value) })} placeholder="0.00" />
           </div>
-          <div className="flex items-end pb-0.5">
+          <div className="flex flex-col items-center gap-1">
             <Button type="button" variant="ghost" size="sm" onClick={() => setFormState({ ...formState, items: formState.items.filter((_, i) => i !== index) })} disabled={formState.items.length === 1} className="h-9 w-9 p-0">
               <Trash2 className="h-4 w-4 text-destructive" />
             </Button>
+            {index === formState.items.length - 1 && (
+              <Button type="button" variant="outline" size="sm" onClick={() => setFormState({ ...formState, items: [...formState.items, emptyItem()] })} className="h-9 w-9 p-0">
+                <Plus className="h-4 w-4" />
+              </Button>
+            )}
           </div>
         </div>
       ))}
@@ -303,7 +308,6 @@ const Transactions = () => {
                 <div className="border-t pt-4">
                   <div className="flex items-center gap-3 mb-3">
                     <h4 className="font-semibold">Line Items</h4>
-                    <Button type="button" variant="outline" size="sm" onClick={() => setFormData({ ...formData, items: [...formData.items, emptyItem()] })}><Plus className="h-4 w-4 mr-1" />Add Item</Button>
                   </div>
                   {renderItemRows(formData, setFormData)}
                 </div>
