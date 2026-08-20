@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { transactions as txApi, items as itemsApi, categories as categoriesApi, normalizeTransaction, normalizeItem, normalizeCategory, normalizeSubcategory } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit, ArrowRightLeft, Search } from "lucide-react";
+import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit, ArrowRightLeft, Search, ChevronDown, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
@@ -36,6 +36,7 @@ const Transactions = () => {
   const [submitting, setSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
 
   const defaultForm = { type: "purchase" as TxType, reference: "", customerSupplier: "", contact: "", notes: "", date: new Date().toISOString().split('T')[0], tinNo: "", items: [emptyItem()] };
   const [formData, setFormData] = useState(defaultForm);
@@ -383,27 +384,67 @@ const Transactions = () => {
                     </TableHeader>
                     <TableBody>
                       {filteredTxList.map((tx) => (
-                        <TableRow key={tx.id}>
-                          <TableCell className="py-2">
-                            <Badge variant={tx.transaction_type === 'purchase' ? 'secondary' : tx.transaction_type === 'transfer' ? 'outline' : 'default'} className="gap-1 text-xs">
-                              {tx.transaction_type === 'purchase' ? <ShoppingCart className="h-3 w-3" /> : tx.transaction_type === 'transfer' ? <ArrowRightLeft className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                              {tx.transaction_type?.charAt(0).toUpperCase() + tx.transaction_type?.slice(1)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs py-2">
-                            <button onClick={() => navigate(`/transactions/${tx.id}`)} className="hover:text-primary hover:underline">{tx.reference_number}</button>
-                          </TableCell>
-                          <TableCell className="text-sm py-2">{tx.customer_supplier_name}</TableCell>
-                          <TableCell className="text-sm py-2">{new Date(tx.transaction_date).toLocaleDateString()}</TableCell>
-                          <TableCell className="text-right font-semibold text-sm py-2">ETB {tx.total_amount?.toLocaleString()}</TableCell>
-                          <TableCell className="text-right py-2">
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="sm" onClick={() => generatePDF(tx.id)} className="h-7 w-7 p-0" title="PDF"><FileText className="h-3.5 w-3.5" /></Button>
-                              <Button variant="ghost" size="sm" onClick={() => openEditDialog(tx)} className="h-7 w-7 p-0" title="Edit"><Edit className="h-3.5 w-3.5" /></Button>
-                              <Button variant="ghost" size="sm" onClick={() => setDeleteId(tx.id)} className="h-7 w-7 p-0" title="Delete"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                        <Fragment key={tx.id}>
+                          <TableRow className="cursor-pointer" onClick={() => setExpandedTxId(expandedTxId === tx.id ? null : tx.id)}>
+                            <TableCell className="py-2">
+                              <div className="flex items-center gap-2">
+                                {expandedTxId === tx.id ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                <Badge variant={tx.transaction_type === 'purchase' ? 'secondary' : tx.transaction_type === 'transfer' ? 'outline' : 'default'} className="gap-1 text-xs">
+                                  {tx.transaction_type === 'purchase' ? <ShoppingCart className="h-3 w-3" /> : tx.transaction_type === 'transfer' ? <ArrowRightLeft className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                                  {tx.transaction_type?.charAt(0).toUpperCase() + tx.transaction_type?.slice(1)}
+                                </Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell className="font-mono text-xs py-2">
+                              <button onClick={(e) => { e.stopPropagation(); navigate(`/transactions/${tx.id}`); }} className="hover:text-primary hover:underline">{tx.reference_number}</button>
+                            </TableCell>
+                            <TableCell className="text-sm py-2">{tx.customer_supplier_name}</TableCell>
+                            <TableCell className="text-sm py-2">{new Date(tx.transaction_date).toLocaleDateString()}</TableCell>
+                            <TableCell className="text-right font-semibold text-sm py-2">ETB {tx.total_amount?.toLocaleString()}</TableCell>
+                            <TableCell className="text-right py-2">
+                              <div className="flex justify-end gap-1">
+                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); generatePDF(tx.id); }} className="h-7 w-7 p-0" title="PDF"><FileText className="h-3.5 w-3.5" /></Button>
+                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openEditDialog(tx); }} className="h-7 w-7 p-0" title="Edit"><Edit className="h-3.5 w-3.5" /></Button>
+                                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setDeleteId(tx.id); }} className="h-7 w-7 p-0" title="Delete"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                          {expandedTxId === tx.id && (
+                            <TableRow>
+                              <TableCell colSpan={6} className="p-0">
+                                <div className="px-4 py-3 bg-muted/30">
+                                  {tx.notes && <p className="text-xs text-muted-foreground mb-2"><span className="font-medium">Notes:</span> {tx.notes}</p>}
+                                  {tx.items?.length > 0 ? (
+                                    <Table>
+                                      <TableHeader>
+                                        <TableRow>
+                                          <TableHead className="h-7 text-xs">Item</TableHead>
+                                          <TableHead className="h-7 text-xs">SKU</TableHead>
+                                          <TableHead className="h-7 text-xs text-right">Qty</TableHead>
+                                          <TableHead className="h-7 text-xs text-right">Unit Price</TableHead>
+                                          <TableHead className="h-7 text-xs text-right">Total</TableHead>
+                                        </TableRow>
+                                      </TableHeader>
+                                      <TableBody>
+                                        {tx.items.map((li: any) => (
+                                          <TableRow key={li.id}>
+                                            <TableCell className="text-xs py-1">{li.items?.name || 'Unknown'}</TableCell>
+                                            <TableCell className="font-mono text-xs py-1">{li.items?.sku || 'N/A'}</TableCell>
+                                            <TableCell className="text-right text-xs py-1">{li.quantity}</TableCell>
+                                            <TableCell className="text-right text-xs py-1">ETB {li.unit_price?.toFixed(2)}</TableCell>
+                                            <TableCell className="text-right text-xs py-1 font-medium">ETB {li.total_price?.toFixed(2)}</TableCell>
+                                          </TableRow>
+                                        ))}
+                                      </TableBody>
+                                    </Table>
+                                  ) : (
+                                    <p className="text-xs text-muted-foreground">No line items</p>
+                                  )}
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          )}
+                        </Fragment>
                       ))}
                     </TableBody>
                   </Table>
