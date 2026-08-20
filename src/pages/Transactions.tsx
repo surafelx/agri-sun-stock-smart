@@ -42,6 +42,9 @@ const Transactions = () => {
   const [itemPickerIndex, setItemPickerIndex] = useState(0);
   const [itemPickerSearch, setItemPickerSearch] = useState("");
   const [itemPickerForm, setItemPickerForm] = useState<any>(null);
+  const [txPickerOpen, setTxPickerOpen] = useState(false);
+  const [txPickerSearch, setTxPickerSearch] = useState("");
+  const [txPickerTarget, setTxPickerTarget] = useState<"create" | "edit">("create");
 
   const defaultForm = { type: "purchase" as TxType, reference: "", customerSupplier: "", contact: "", notes: "", date: new Date().toISOString().split('T')[0], tinNo: "", items: [emptyItem()] };
   const [formData, setFormData] = useState(defaultForm);
@@ -309,7 +312,12 @@ const Transactions = () => {
                       <SelectContent><SelectItem value="purchase">Purchase</SelectItem><SelectItem value="sale">Sale</SelectItem><SelectItem value="adjustment">Adjustment</SelectItem><SelectItem value="transfer">Transfer</SelectItem></SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1"><Label>Reference Number *</Label><Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder="e.g., INV-2024-001" required /></div>
+                  <div className="space-y-1"><Label>Reference Number *</Label>
+                    <div className="flex gap-2">
+                      <Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder="e.g., INV-2024-001" required className="flex-1" />
+                      <Button type="button" variant="outline" size="sm" onClick={() => { setTxPickerTarget("create"); setTxPickerSearch(""); setTxPickerOpen(true); }}>Select</Button>
+                    </div>
+                  </div>
                   <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -430,7 +438,12 @@ const Transactions = () => {
         <DialogContent className="max-w-xl">
           <DialogHeader><DialogTitle className="text-lg">Edit Transaction Metadata</DialogTitle><DialogDescription className="text-sm">Update reference, contact, and notes (line items cannot be changed — delete and recreate instead)</DialogDescription></DialogHeader>
           <form onSubmit={handleEditSubmit} className="space-y-3">
-            <div className="space-y-1"><Label>Reference Number *</Label><Input value={editFormData.reference} onChange={(e) => setEditFormData({ ...editFormData, reference: e.target.value })} required /></div>
+            <div className="space-y-1"><Label>Reference Number *</Label>
+              <div className="flex gap-2">
+                <Input value={editFormData.reference} onChange={(e) => setEditFormData({ ...editFormData, reference: e.target.value })} required className="flex-1" />
+                <Button type="button" variant="outline" size="sm" onClick={() => { setTxPickerTarget("edit"); setTxPickerSearch(""); setTxPickerOpen(true); }}>Select</Button>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={editFormData.date} onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })} required /></div>
               <div className="space-y-1"><Label>Contact</Label><Input value={editFormData.contact} onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })} /></div>
@@ -443,6 +456,66 @@ const Transactions = () => {
               <Button type="submit" disabled={submitting}>{submitting ? "Updating..." : "Update"}</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={txPickerOpen} onOpenChange={(open) => { if (!open) setTxPickerOpen(false); }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg">Select Transaction</DialogTitle>
+            <DialogDescription>Search by reference number, customer/supplier, or type</DialogDescription>
+          </DialogHeader>
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search reference, customer, type..." value={txPickerSearch} onChange={(e) => setTxPickerSearch(e.target.value)} className="pl-9" autoFocus />
+          </div>
+          <div className="border rounded-lg max-h-[50vh] overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="h-8 text-xs">Type</TableHead>
+                  <TableHead className="h-8 text-xs">Reference</TableHead>
+                  <TableHead className="h-8 text-xs">Customer/Supplier</TableHead>
+                  <TableHead className="h-8 text-xs">Date</TableHead>
+                  <TableHead className="h-8 text-xs text-right">Amount</TableHead>
+                  <TableHead className="h-8 text-xs text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(() => {
+                  const filtered = txList.filter((tx) => {
+                    if (!txPickerSearch) return true;
+                    const t = txPickerSearch.toLowerCase();
+                    return tx.reference_number?.toLowerCase().includes(t)
+                      || tx.customer_supplier_name?.toLowerCase().includes(t)
+                      || tx.transaction_type?.toLowerCase().includes(t);
+                  });
+                  if (filtered.length === 0) return <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">No transactions found</TableCell></TableRow>;
+                  return filtered.map((tx) => (
+                    <TableRow key={tx.id} className="cursor-pointer hover:bg-muted/50" onClick={() => {
+                      if (txPickerTarget === "create") {
+                        setFormData({ ...formData, reference: tx.reference_number, type: tx.transaction_type, customerSupplier: tx.customer_supplier_name || "", contact: tx.customer_supplier_contact || "", date: tx.transaction_date ? new Date(tx.transaction_date).toISOString().split('T')[0] : formData.date });
+                      } else {
+                        setEditFormData({ ...editFormData, reference: tx.reference_number });
+                      }
+                      setTxPickerOpen(false);
+                    }}>
+                      <TableCell className="py-2">
+                        <Badge variant={tx.transaction_type === 'purchase' ? 'secondary' : tx.transaction_type === 'transfer' ? 'outline' : 'default'} className="gap-1 text-xs">
+                          {tx.transaction_type?.charAt(0).toUpperCase() + tx.transaction_type?.slice(1)}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs py-2">{tx.reference_number}</TableCell>
+                      <TableCell className="text-sm py-2">{tx.customer_supplier_name}</TableCell>
+                      <TableCell className="text-sm py-2">{new Date(tx.transaction_date).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-right text-sm py-2 font-medium">ETB {tx.total_amount?.toLocaleString()}</TableCell>
+                      <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
+                    </TableRow>
+                  ));
+                })()}
+              </TableBody>
+            </Table>
+          </div>
         </DialogContent>
       </Dialog>
 
