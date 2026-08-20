@@ -11,13 +11,13 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit } from "lucide-react";
+import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit, ArrowRightLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 
-type TxType = 'purchase' | 'sale' | 'adjustment';
+type TxType = 'purchase' | 'sale' | 'adjustment' | 'transfer';
 
 const emptyItem = () => ({ categoryId: "", subcategoryId: "", itemId: "", quantity: "", unitPrice: "" });
 
@@ -172,7 +172,7 @@ const Transactions = () => {
       doc.text(`Type: ${tx.transaction_type?.toUpperCase()}`, 20, 40);
       doc.text(`Reference: ${tx.reference_number}`, 20, 50);
       doc.text(`Date: ${new Date(tx.transaction_date).toLocaleDateString()}`, 20, 60);
-      doc.text(`${tx.transaction_type === 'purchase' ? 'Supplier' : 'Customer'}: ${tx.customer_supplier_name}`, 20, 70);
+      doc.text(`${tx.transaction_type === 'purchase' ? 'Supplier' : tx.transaction_type === 'transfer' ? 'From' : 'Customer'}: ${tx.customer_supplier_name}`, 20, 70);
       if (tx.customer_supplier_contact) doc.text(`Contact: ${tx.customer_supplier_contact}`, 20, 80);
       let y = 100;
       doc.setFontSize(10);
@@ -278,25 +278,25 @@ const Transactions = () => {
     <Layout>
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <div><h2 className="text-2xl font-bold tracking-tight">Transactions</h2><p className="text-sm text-muted-foreground">Record purchases and sales</p></div>
+          <div><h2 className="text-2xl font-bold tracking-tight">Transactions</h2><p className="text-sm text-muted-foreground">Record purchases, sales, and transfers</p></div>
           <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setFormData(defaultForm); }}>
             <DialogTrigger asChild><Button size="sm"><Plus className="mr-1.5 h-4 w-4" />New Transaction</Button></DialogTrigger>
             <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader><DialogTitle className="text-lg">Create Transaction</DialogTitle><DialogDescription className="text-sm">Record a new purchase or sale</DialogDescription></DialogHeader>
+              <DialogHeader><DialogTitle className="text-lg">Create Transaction</DialogTitle><DialogDescription className="text-sm">Record a new purchase, sale, or transfer</DialogDescription></DialogHeader>
               <form onSubmit={handleSubmit} className="space-y-3">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label>Type *</Label>
                     <Select value={formData.type} onValueChange={(v: TxType) => setFormData({ ...formData, type: v })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="purchase">Purchase</SelectItem><SelectItem value="sale">Sale</SelectItem><SelectItem value="adjustment">Adjustment</SelectItem></SelectContent>
+                      <SelectContent><SelectItem value="purchase">Purchase</SelectItem><SelectItem value="sale">Sale</SelectItem><SelectItem value="adjustment">Adjustment</SelectItem><SelectItem value="transfer">Transfer</SelectItem></SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1"><Label>Reference Number *</Label><Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder="e.g., INV-2024-001" required /></div>
                   <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2"><Label>{formData.type === 'purchase' ? 'Supplier' : 'Customer'} Name *</Label><Input value={formData.customerSupplier} onChange={(e) => setFormData({ ...formData, customerSupplier: e.target.value })} required /></div>
+                  <div className="space-y-2"><Label>{formData.type === 'purchase' ? 'Supplier' : formData.type === 'transfer' ? 'From' : 'Customer'} Name *</Label><Input value={formData.customerSupplier} onChange={(e) => setFormData({ ...formData, customerSupplier: e.target.value })} required /></div>
                   <div className="space-y-2"><Label>TIN No</Label><Input value={formData.tinNo} onChange={(e) => setFormData({ ...formData, tinNo: e.target.value })} placeholder="Tax ID" /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -322,7 +322,7 @@ const Transactions = () => {
           <div className="flex items-center justify-center min-h-[40vh]"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>
         ) : (
           <Card className="shadow-card">
-            <CardHeader className="pb-3"><CardTitle className="text-base">Transaction History</CardTitle><CardDescription className="text-sm">All purchases and sales transactions</CardDescription></CardHeader>
+            <CardHeader className="pb-3"><CardTitle className="text-base">Transaction History</CardTitle><CardDescription className="text-sm">All purchases, sales, and transfers</CardDescription></CardHeader>
             <CardContent className="pt-0">
               <div className="flex justify-end mb-4">
                 <Button variant="outline" size="sm" onClick={exportToExcel}><Download className="mr-1.5 h-4 w-4" />Export to Excel</Button>
@@ -346,8 +346,8 @@ const Transactions = () => {
                       {txList.map((tx) => (
                         <TableRow key={tx.id}>
                           <TableCell className="py-2">
-                            <Badge variant={tx.transaction_type === 'purchase' ? 'secondary' : 'default'} className="gap-1 text-xs">
-                              {tx.transaction_type === 'purchase' ? <ShoppingCart className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
+                            <Badge variant={tx.transaction_type === 'purchase' ? 'secondary' : tx.transaction_type === 'transfer' ? 'outline' : 'default'} className="gap-1 text-xs">
+                              {tx.transaction_type === 'purchase' ? <ShoppingCart className="h-3 w-3" /> : tx.transaction_type === 'transfer' ? <ArrowRightLeft className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
                               {tx.transaction_type?.charAt(0).toUpperCase() + tx.transaction_type?.slice(1)}
                             </Badge>
                           </TableCell>

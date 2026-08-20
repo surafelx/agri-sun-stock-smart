@@ -15,13 +15,14 @@ const Dashboard = () => {
       .then(([statsData, chartRes]) => {
         setStats(statsData);
         // Convert YYYY-MM to short month name for display
-        setChartData(
-          chartRes.chartData.map((d: any) => ({
-            name: new Date(d.month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-            purchases: d.purchase || 0,
-            sales: d.sale || 0,
-          }))
-        );
+          setChartData(
+            chartRes.chartData.map((d: any) => ({
+              name: new Date(d.month + '-01').toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+              purchases: d.purchase || 0,
+              sales: d.sale || 0,
+              transfers: d.transfer || 0,
+            }))
+          );
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -95,7 +96,7 @@ const Dashboard = () => {
           <Card className="shadow-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Transaction Values</CardTitle>
-              <CardDescription className="text-xs">Monthly purchase vs sales amounts (ETB)</CardDescription>
+              <CardDescription className="text-xs">Monthly purchase vs sales vs transfers (ETB)</CardDescription>
             </CardHeader>
             <CardContent className="pt-2">
               <ResponsiveContainer width="100%" height={250}>
@@ -107,6 +108,7 @@ const Dashboard = () => {
                   <Legend />
                   <Bar dataKey="purchases" fill="hsl(var(--primary))" name="Purchases" />
                   <Bar dataKey="sales" fill="hsl(var(--chart-2))" name="Sales" />
+                  <Bar dataKey="transfers" fill="hsl(var(--chart-3))" name="Transfers" />
                 </BarChart>
               </ResponsiveContainer>
             </CardContent>
@@ -127,6 +129,7 @@ const Dashboard = () => {
                   <Legend />
                   <Line type="monotone" dataKey="purchases" stroke="hsl(var(--primary))" name="Purchases" />
                   <Line type="monotone" dataKey="sales" stroke="hsl(var(--chart-2))" name="Sales" />
+                  <Line type="monotone" dataKey="transfers" stroke="hsl(var(--chart-3))" name="Transfers" />
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>

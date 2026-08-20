@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, ShoppingCart, TrendingUp, FileText } from "lucide-react";
+import { ArrowLeft, ShoppingCart, TrendingUp, FileText, ArrowRightLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from 'jspdf';
 
@@ -35,7 +35,7 @@ const TransactionDetail = () => {
     doc.text(`Type: ${transaction.transaction_type?.toUpperCase()}`, 20, 40);
     doc.text(`Reference: ${transaction.reference_number}`, 20, 50);
     doc.text(`Date: ${new Date(transaction.transaction_date).toLocaleDateString()}`, 20, 60);
-    doc.text(`${transaction.transaction_type === 'purchase' ? 'Supplier' : 'Customer'}: ${transaction.customer_supplier_name}`, 20, 70);
+    doc.text(`${transaction.transaction_type === 'purchase' ? 'Supplier' : transaction.transaction_type === 'transfer' ? 'From' : 'Customer'}: ${transaction.customer_supplier_name}`, 20, 70);
     if (transaction.customer_supplier_contact) doc.text(`Contact: ${transaction.customer_supplier_contact}`, 20, 80);
     let y = 100;
     doc.setFontSize(10);
@@ -92,14 +92,14 @@ const TransactionDetail = () => {
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                {transaction.transaction_type === 'purchase' ? <ShoppingCart className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
+                {transaction.transaction_type === 'purchase' ? <ShoppingCart className="h-5 w-5" /> : transaction.transaction_type === 'transfer' ? <ArrowRightLeft className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
                 {transaction.transaction_type?.charAt(0).toUpperCase() + transaction.transaction_type?.slice(1)}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
               <div><span className="font-medium">Reference:</span> {transaction.reference_number}</div>
               <div><span className="font-medium">Date:</span> {new Date(transaction.transaction_date).toLocaleDateString()}</div>
-              <div><span className="font-medium">{transaction.transaction_type === 'purchase' ? 'Supplier' : 'Customer'}:</span> {transaction.customer_supplier_name}</div>
+              <div><span className="font-medium">{transaction.transaction_type === 'purchase' ? 'Supplier' : transaction.transaction_type === 'transfer' ? 'From' : 'Customer'}:</span> {transaction.customer_supplier_name}</div>
               {transaction.customer_supplier_contact && <div><span className="font-medium">Contact:</span> {transaction.customer_supplier_contact}</div>}
               {transaction.notes && <div><span className="font-medium">Notes:</span> {transaction.notes}</div>}
             </CardContent>
