@@ -26,6 +26,7 @@ const Admin = () => {
   const [userSearch, setUserSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [categorySearch, setCategorySearch] = useState("");
+  const [debouncedUserSearch, setDebouncedUserSearch] = useState("");
 
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [editUserOpen, setEditUserOpen] = useState(false);
@@ -51,6 +52,15 @@ const Admin = () => {
     fetchAll();
   }, [me]);
 
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedUserSearch(userSearch), 300);
+    return () => clearTimeout(t);
+  }, [userSearch]);
+
+  useEffect(() => {
+    if (me?.role === 'admin') fetchUsers();
+  }, [debouncedUserSearch, roleFilter]);
+
   const fetchAll = async () => {
     setLoading(true);
     try {
@@ -61,7 +71,10 @@ const Admin = () => {
   };
 
   const fetchUsers = async () => {
-    const res = await usersApi.list({ limit: "100" });
+    const params: Record<string, string> = { limit: "500" };
+    if (debouncedUserSearch) params.search = debouncedUserSearch;
+    if (roleFilter !== "all") params.role = roleFilter;
+    const res = await usersApi.list(params);
     setUsersList((res.users || []).map(normalizeUser));
   };
 
@@ -196,14 +209,7 @@ const Admin = () => {
     return 'secondary';
   };
 
-  const filteredUsers = usersList.filter((u) => {
-    const matchesSearch = !userSearch || (() => {
-      const t = userSearch.toLowerCase();
-      return (u.full_name || u.fullName || "").toLowerCase().includes(t) || u.email?.toLowerCase().includes(t);
-    })();
-    const matchesRole = roleFilter === "all" || u.role === roleFilter;
-    return matchesSearch && matchesRole;
-  });
+  const filteredUsers = usersList;
 
   const filteredCategories = categoriesList.filter((c) => {
     if (!categorySearch) return true;

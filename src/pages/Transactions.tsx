@@ -37,19 +37,28 @@ const Transactions = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [expandedTxId, setExpandedTxId] = useState<string | null>(null);
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const defaultForm = { type: "purchase" as TxType, reference: "", customerSupplier: "", contact: "", notes: "", date: new Date().toISOString().split('T')[0], tinNo: "", items: [emptyItem()] };
   const [formData, setFormData] = useState(defaultForm);
   const [editFormData, setEditFormData] = useState(defaultForm);
 
   useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  useEffect(() => {
     fetchAll();
-  }, []);
+  }, [debouncedSearch, typeFilter]);
 
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [txRes, itemRes] = await Promise.all([txApi.list({ limit: "200" }), itemsApi.list({ limit: "500" })]);
+      const txParams: Record<string, string> = { limit: "500" };
+      if (debouncedSearch) txParams.search = debouncedSearch;
+      if (typeFilter !== "all") txParams.type = typeFilter;
+      const [txRes, itemRes] = await Promise.all([txApi.list(txParams), itemsApi.list({ limit: "500" })]);
       setTxList((txRes.transactions || []).map(normalizeTransaction));
       setItemsList((itemRes.items || []).map(normalizeItem));
       await fetchCategories();
@@ -231,16 +240,7 @@ const Transactions = () => {
       return matchCat && matchSub;
     });
 
-  const filteredTxList = txList.filter((tx) => {
-    const matchesSearch = !searchTerm || (() => {
-      const t = searchTerm.toLowerCase();
-      return tx.reference_number?.toLowerCase().includes(t)
-        || tx.customer_supplier_name?.toLowerCase().includes(t)
-        || tx.notes?.toLowerCase().includes(t);
-    })();
-    const matchesType = typeFilter === "all" || tx.transaction_type === typeFilter;
-    return matchesSearch && matchesType;
-  });
+  const filteredTxList = txList;
 
   const renderItemRows = (formState: typeof formData, setFormState: (f: any) => void) => (
     <div className="space-y-3">

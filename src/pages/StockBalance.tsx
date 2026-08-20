@@ -19,13 +19,24 @@ const StockBalance = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   useEffect(() => {
-    sbApi.list({ limit: "500" })
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    setLoading(true);
+    const params: Record<string, string> = { limit: "500" };
+    if (debouncedSearch) params.search = debouncedSearch;
+    if (categoryFilter !== "all") params.category = categoryFilter;
+    if (statusFilter !== "all") params.status = statusFilter;
+    sbApi.list(params)
       .then((res) => setBalances(res.balances || []))
       .catch((err) => toast({ variant: "destructive", title: "Error", description: err.message }))
       .finally(() => setLoading(false));
-  }, []);
+  }, [debouncedSearch, categoryFilter, statusFilter]);
 
   const totalItems = balances.length;
   const totalValue = balances.reduce((s, b) => s + (b.inventoryValue || 0), 0);
@@ -35,18 +46,7 @@ const StockBalance = () => {
 
   const categories = [...new Set(balances.map((b) => b.category?.name).filter(Boolean))];
 
-  const filteredBalances = balances.filter((b) => {
-    const matchesSearch = !searchTerm || (() => {
-      const t = searchTerm.toLowerCase();
-      return b.name?.toLowerCase().includes(t) || b.sku?.toLowerCase().includes(t) || b.category?.name?.toLowerCase().includes(t);
-    })();
-    const matchesCategory = categoryFilter === "all" || b.category?.name === categoryFilter;
-    const matchesStatus = statusFilter === "all"
-      || (statusFilter === "in_stock" && b.quantity > 0 && !b.isLowStock)
-      || (statusFilter === "low_stock" && b.isLowStock && b.quantity > 0)
-      || (statusFilter === "out_of_stock" && b.quantity === 0);
-    return matchesSearch && matchesCategory && matchesStatus;
-  });
+  const filteredBalances = balances;
 
   const getStockStatus = (b: any) => {
     if (b.quantity === 0) return { status: "Out of Stock", variant: "destructive" as const };
