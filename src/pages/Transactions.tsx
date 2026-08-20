@@ -261,7 +261,12 @@ const Transactions = () => {
           </div>
           <div className="space-y-2">
             <Label>Item</Label>
-            <Select value={item.itemId} onValueChange={(v) => setFormState({ ...formState, items: updateFormItem(formState, index, 'itemId', v) })}>
+            <Select value={item.itemId} onValueChange={(v) => {
+              const selectedItem = itemsList.find((i) => i.id === v);
+              const newItems = [...formState.items];
+              newItems[index] = { ...newItems[index], itemId: v, unitPrice: selectedItem ? String(selectedItem.cost_price || selectedItem.unit_price || "") : newItems[index].unitPrice };
+              setFormState({ ...formState, items: newItems });
+            }}>
               <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
               <SelectContent>{filteredItemsForRow(item.categoryId, item.subcategoryId).map((inv) => <SelectItem key={inv.id} value={inv.id}>{inv.name} ({inv.sku})</SelectItem>)}</SelectContent>
             </Select>
