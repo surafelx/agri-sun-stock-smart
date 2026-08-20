@@ -264,7 +264,7 @@ const Transactions = () => {
             <Select value={item.itemId} onValueChange={(v) => {
               const selectedItem = itemsList.find((i) => i.id === v);
               const newItems = [...formState.items];
-              newItems[index] = { ...newItems[index], itemId: v, unitPrice: selectedItem ? String(selectedItem.cost_price || selectedItem.unit_price || "") : newItems[index].unitPrice };
+              newItems[index] = { ...newItems[index], itemId: v, quantity: selectedItem ? String(selectedItem.quantity ?? "") : newItems[index].quantity, unitPrice: selectedItem ? String(selectedItem.cost_price || selectedItem.unit_price || "") : newItems[index].unitPrice };
               setFormState({ ...formState, items: newItems });
             }}>
               <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
