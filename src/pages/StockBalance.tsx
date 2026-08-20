@@ -5,15 +5,20 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Package, TrendingUp, DollarSign, AlertTriangle, Plus, Minus } from "lucide-react";
+import { Package, TrendingUp, DollarSign, AlertTriangle, Plus, Minus, Search } from "lucide-react";
 
 const StockBalance = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [balances, setBalances] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
     sbApi.list({ limit: "500" })
@@ -27,6 +32,21 @@ const StockBalance = () => {
   const totalCost = balances.reduce((s, b) => s + (b.inventoryValue || 0), 0);
   const lowStockItems = balances.filter((b) => b.isLowStock && b.quantity > 0).length;
   const outOfStockItems = balances.filter((b) => b.quantity === 0).length;
+
+  const categories = [...new Set(balances.map((b) => b.category?.name).filter(Boolean))];
+
+  const filteredBalances = balances.filter((b) => {
+    const matchesSearch = !searchTerm || (() => {
+      const t = searchTerm.toLowerCase();
+      return b.name?.toLowerCase().includes(t) || b.sku?.toLowerCase().includes(t) || b.category?.name?.toLowerCase().includes(t);
+    })();
+    const matchesCategory = categoryFilter === "all" || b.category?.name === categoryFilter;
+    const matchesStatus = statusFilter === "all"
+      || (statusFilter === "in_stock" && b.quantity > 0 && !b.isLowStock)
+      || (statusFilter === "low_stock" && b.isLowStock && b.quantity > 0)
+      || (statusFilter === "out_of_stock" && b.quantity === 0);
+    return matchesSearch && matchesCategory && matchesStatus;
+  });
 
   const getStockStatus = (b: any) => {
     if (b.quantity === 0) return { status: "Out of Stock", variant: "destructive" as const };
@@ -90,6 +110,38 @@ const StockBalance = () => {
         </div>
 
         <Card className="shadow-card">
+          <CardContent className="pt-4">
+            <div className="flex flex-col md:flex-row gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search SKU, name, category..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+              </div>
+              <div className="flex gap-2">
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Categories" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map((c) => <SelectItem key={c} value={c!}>{c}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="All Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="in_stock">In Stock</SelectItem>
+                    <SelectItem value="low_stock">Low Stock</SelectItem>
+                    <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(searchTerm || categoryFilter !== "all" || statusFilter !== "all") && (
+                  <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setCategoryFilter("all"); setStatusFilter("all"); }}>Clear</Button>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="shadow-card">
           <CardHeader>
             <CardTitle className="text-lg">Stock Balance Summary</CardTitle>
             <CardDescription>Current quantity and value for all inventory items</CardDescription>
@@ -100,6 +152,12 @@ const StockBalance = () => {
                 <Package className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No items in inventory</h3>
                 <Button onClick={() => navigate('/items')}>Go to Items Management</Button>
+              </div>
+            ) : filteredBalances.length === 0 ? (
+              <div className="text-center py-8">
+                <Search className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
+                <h3 className="text-base font-semibold mb-1">No results found</h3>
+                <p className="text-sm text-muted-foreground">Try adjusting your search or filters</p>
               </div>
             ) : (
               <div className="border rounded-lg overflow-x-auto">
@@ -118,7 +176,7 @@ const StockBalance = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {balances.map((b: any) => {
+                    {filteredBalances.map((b: any) => {
                       const ss = getStockStatus(b);
                       return (
                         <TableRow key={b.id}>

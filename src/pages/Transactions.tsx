@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit, ArrowRightLeft } from "lucide-react";
+import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit, ArrowRightLeft, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
@@ -34,6 +34,8 @@ const Transactions = () => {
   const [editingTx, setEditingTx] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState("all");
 
   const defaultForm = { type: "purchase" as TxType, reference: "", customerSupplier: "", contact: "", notes: "", date: new Date().toISOString().split('T')[0], tinNo: "", items: [emptyItem()] };
   const [formData, setFormData] = useState(defaultForm);
@@ -228,6 +230,17 @@ const Transactions = () => {
       return matchCat && matchSub;
     });
 
+  const filteredTxList = txList.filter((tx) => {
+    const matchesSearch = !searchTerm || (() => {
+      const t = searchTerm.toLowerCase();
+      return tx.reference_number?.toLowerCase().includes(t)
+        || tx.customer_supplier_name?.toLowerCase().includes(t)
+        || tx.notes?.toLowerCase().includes(t);
+    })();
+    const matchesType = typeFilter === "all" || tx.transaction_type === typeFilter;
+    return matchesSearch && matchesType;
+  });
+
   const renderItemRows = (formState: typeof formData, setFormState: (f: any) => void) => (
     <div className="space-y-3">
       {formState.items.map((item, index) => (
@@ -324,11 +337,32 @@ const Transactions = () => {
           <Card className="shadow-card">
             <CardHeader className="pb-3"><CardTitle className="text-base">Transaction History</CardTitle><CardDescription className="text-sm">All purchases, sales, and transfers</CardDescription></CardHeader>
             <CardContent className="pt-0">
-              <div className="flex justify-end mb-4">
-                <Button variant="outline" size="sm" onClick={exportToExcel}><Download className="mr-1.5 h-4 w-4" />Export to Excel</Button>
+              <div className="flex flex-col md:flex-row gap-3 mb-4">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Search reference, customer/supplier..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
+                </div>
+                <div className="flex gap-2">
+                  <Select value={typeFilter} onValueChange={setTypeFilter}>
+                    <SelectTrigger className="w-[150px]"><SelectValue placeholder="All Types" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="purchase">Purchase</SelectItem>
+                      <SelectItem value="sale">Sale</SelectItem>
+                      <SelectItem value="transfer">Transfer</SelectItem>
+                      <SelectItem value="adjustment">Adjustment</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {(searchTerm || typeFilter !== "all") && (
+                    <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setTypeFilter("all"); }}>Clear</Button>
+                  )}
+                  <Button variant="outline" size="sm" onClick={exportToExcel}><Download className="mr-1.5 h-4 w-4" />Export</Button>
+                </div>
               </div>
               {txList.length === 0 ? (
                 <div className="text-center py-8"><ShoppingCart className="mx-auto h-10 w-10 text-muted-foreground mb-3" /><h3 className="text-base font-semibold mb-1">No transactions yet</h3></div>
+              ) : filteredTxList.length === 0 ? (
+                <div className="text-center py-8"><Search className="mx-auto h-10 w-10 text-muted-foreground mb-3" /><h3 className="text-base font-semibold mb-1">No results found</h3><p className="text-sm text-muted-foreground">Try adjusting your search or filters</p></div>
               ) : (
                 <div className="border rounded-lg">
                   <Table>
@@ -343,7 +377,7 @@ const Transactions = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {txList.map((tx) => (
+                      {filteredTxList.map((tx) => (
                         <TableRow key={tx.id}>
                           <TableCell className="py-2">
                             <Badge variant={tx.transaction_type === 'purchase' ? 'secondary' : tx.transaction_type === 'transfer' ? 'outline' : 'default'} className="gap-1 text-xs">

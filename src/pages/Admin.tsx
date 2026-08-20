@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Shield, Plus, Trash2, Tag, Pencil } from "lucide-react";
+import { Settings, Users, Shield, Plus, Trash2, Tag, Pencil, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
@@ -23,6 +23,9 @@ const Admin = () => {
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [subcategoriesList, setSubcategoriesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userSearch, setUserSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [categorySearch, setCategorySearch] = useState("");
 
   const [userDialogOpen, setUserDialogOpen] = useState(false);
   const [editUserOpen, setEditUserOpen] = useState(false);
@@ -193,6 +196,25 @@ const Admin = () => {
     return 'secondary';
   };
 
+  const filteredUsers = usersList.filter((u) => {
+    const matchesSearch = !userSearch || (() => {
+      const t = userSearch.toLowerCase();
+      return (u.full_name || u.fullName || "").toLowerCase().includes(t) || u.email?.toLowerCase().includes(t);
+    })();
+    const matchesRole = roleFilter === "all" || u.role === roleFilter;
+    return matchesSearch && matchesRole;
+  });
+
+  const filteredCategories = categoriesList.filter((c) => {
+    if (!categorySearch) return true;
+    return c.name?.toLowerCase().includes(categorySearch.toLowerCase());
+  });
+
+  const filteredSubcategories = subcategoriesList.filter((s) => {
+    if (!categorySearch) return true;
+    return s.name?.toLowerCase().includes(categorySearch.toLowerCase()) || s.categories?.name?.toLowerCase().includes(categorySearch.toLowerCase());
+  });
+
   if (loading) {
     return (
       <Layout>
@@ -247,6 +269,26 @@ const Admin = () => {
                 </Dialog>
               </CardHeader>
               <CardContent className="pt-0">
+                <div className="flex flex-col md:flex-row gap-3 mb-4">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input placeholder="Search name, email..." value={userSearch} onChange={(e) => setUserSearch(e.target.value)} className="pl-9" />
+                  </div>
+                  <div className="flex gap-2">
+                    <Select value={roleFilter} onValueChange={setRoleFilter}>
+                      <SelectTrigger className="w-[160px]"><SelectValue placeholder="All Roles" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Roles</SelectItem>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="inventory_clerk">Inventory Clerk</SelectItem>
+                        <SelectItem value="accountant">Accountant</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(userSearch || roleFilter !== "all") && (
+                      <Button variant="ghost" size="sm" onClick={() => { setUserSearch(""); setRoleFilter("all"); }}>Clear</Button>
+                    )}
+                  </div>
+                </div>
                 <div className="border rounded-lg">
                   <Table>
                     <TableHeader>
@@ -259,7 +301,9 @@ const Admin = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {usersList.map((u) => (
+                      {filteredUsers.length === 0 ? (
+                        <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No users found</TableCell></TableRow>
+                      ) : filteredUsers.map((u) => (
                         <TableRow key={u.id}>
                           <TableCell className="text-sm py-2 font-medium">{u.full_name || u.fullName}</TableCell>
                           <TableCell className="text-sm py-2">{u.email}</TableCell>
@@ -307,6 +351,15 @@ const Admin = () => {
 
           {/* ── Categories Tab ── */}
           <TabsContent value="categories">
+            <div className="flex flex-col md:flex-row gap-3 mb-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search categories, subcategories..." value={categorySearch} onChange={(e) => setCategorySearch(e.target.value)} className="pl-9" />
+              </div>
+              {categorySearch && (
+                <Button variant="ghost" size="sm" onClick={() => setCategorySearch("")}>Clear</Button>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Categories */}
               <Card>
@@ -328,7 +381,9 @@ const Admin = () => {
                     <Table>
                       <TableHeader><TableRow><TableHead className="h-9 text-xs">Name</TableHead><TableHead className="h-9 text-xs text-right">Actions</TableHead></TableRow></TableHeader>
                       <TableBody>
-                        {categoriesList.map((cat) => (
+                        {filteredCategories.length === 0 ? (
+                          <TableRow><TableCell colSpan={2} className="text-center py-6 text-muted-foreground text-sm">No categories found</TableCell></TableRow>
+                        ) : filteredCategories.map((cat) => (
                           <TableRow key={cat.id}>
                             <TableCell className="text-sm py-2">{cat.name}</TableCell>
                             <TableCell className="text-right py-2">
@@ -372,7 +427,9 @@ const Admin = () => {
                     <Table>
                       <TableHeader><TableRow><TableHead className="h-9 text-xs">Name</TableHead><TableHead className="h-9 text-xs">Category</TableHead><TableHead className="h-9 text-xs text-right">Actions</TableHead></TableRow></TableHeader>
                       <TableBody>
-                        {subcategoriesList.map((sub) => (
+                        {filteredSubcategories.length === 0 ? (
+                          <TableRow><TableCell colSpan={3} className="text-center py-6 text-muted-foreground text-sm">No subcategories found</TableCell></TableRow>
+                        ) : filteredSubcategories.map((sub) => (
                           <TableRow key={sub.id}>
                             <TableCell className="text-sm py-2">{sub.name}</TableCell>
                             <TableCell className="text-sm py-2 text-muted-foreground">{sub.categories?.name || '-'}</TableCell>
