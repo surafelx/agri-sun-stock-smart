@@ -38,6 +38,10 @@ const Transactions = () => {
   const [typeFilter, setTypeFilter] = useState("all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [viewTx, setViewTx] = useState<any | null>(null);
+  const [itemPickerOpen, setItemPickerOpen] = useState(false);
+  const [itemPickerIndex, setItemPickerIndex] = useState(0);
+  const [itemPickerSearch, setItemPickerSearch] = useState("");
+  const [itemPickerForm, setItemPickerForm] = useState<any>(null);
 
   const defaultForm = { type: "purchase" as TxType, reference: "", customerSupplier: "", contact: "", notes: "", date: new Date().toISOString().split('T')[0], tinNo: "", items: [emptyItem()] };
   const [formData, setFormData] = useState(defaultForm);
@@ -262,15 +266,9 @@ const Transactions = () => {
           </div>
           <div className="space-y-2">
             <Label>Item</Label>
-            <Select value={item.itemId} onValueChange={(v) => {
-              const selectedItem = itemsList.find((i) => i.id === v);
-              const newItems = [...formState.items];
-              newItems[index] = { ...newItems[index], itemId: v, quantity: selectedItem ? String(selectedItem.quantity ?? "") : newItems[index].quantity, unitPrice: selectedItem ? String(selectedItem.cost_price || selectedItem.unit_price || "") : newItems[index].unitPrice };
-              setFormState({ ...formState, items: newItems });
-            }}>
-              <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
-              <SelectContent>{filteredItemsForRow(item.categoryId, item.subcategoryId).map((inv) => <SelectItem key={inv.id} value={inv.id}>{inv.name} ({inv.sku})</SelectItem>)}</SelectContent>
-            </Select>
+            <Button type="button" variant="outline" className="w-full justify-start text-left h-10 font-normal" onClick={() => { setItemPickerIndex(index); setItemPickerForm(formState); setItemPickerSearch(""); setItemPickerOpen(true); }}>
+              {item.itemId ? itemsList.find((i) => i.id === item.itemId)?.name || "Selected" : "Select item"}
+            </Button>
           </div>
           <div className="space-y-2">
             <Label>Qty</Label>
@@ -445,6 +443,63 @@ const Transactions = () => {
               <Button type="submit" disabled={submitting}>{submitting ? "Updating..." : "Update"}</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={itemPickerOpen} onOpenChange={(open) => { if (!open) setItemPickerOpen(false); }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg">Select Item</DialogTitle>
+            <DialogDescription>Search and choose an item for this line</DialogDescription>
+          </DialogHeader>
+          <div className="relative mb-3">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search by name, SKU, category..." value={itemPickerSearch} onChange={(e) => setItemPickerSearch(e.target.value)} className="pl-9" autoFocus />
+          </div>
+          <div className="border rounded-lg max-h-[50vh] overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="h-8 text-xs">Name</TableHead>
+                  <TableHead className="h-8 text-xs">SKU</TableHead>
+                  <TableHead className="h-8 text-xs">Category</TableHead>
+                  <TableHead className="h-8 text-xs text-right">Qty</TableHead>
+                  <TableHead className="h-8 text-xs text-right">Cost Price</TableHead>
+                  <TableHead className="h-8 text-xs text-right">Action</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(() => {
+                  const row = itemPickerForm?.items?.[itemPickerIndex];
+                  const filtered = itemsList.filter((inv) => {
+                    const matchCat = !row?.categoryId || inv.category_id === row.categoryId;
+                    const matchSub = !row?.subcategoryId || inv.subcategory_id === row.subcategoryId;
+                    const matchSearch = !itemPickerSearch || (() => {
+                      const t = itemPickerSearch.toLowerCase();
+                      return inv.name?.toLowerCase().includes(t) || inv.sku?.toLowerCase().includes(t) || inv.categories?.name?.toLowerCase().includes(t);
+                    })();
+                    return matchCat && matchSub && matchSearch;
+                  });
+                  if (filtered.length === 0) return <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">No items found</TableCell></TableRow>;
+                  return filtered.map((inv) => (
+                    <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50" onClick={() => {
+                      const newItems = [...itemPickerForm.items];
+                      newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: inv.id, quantity: String(inv.quantity ?? ""), unitPrice: String(inv.cost_price || inv.unit_price || "") };
+                      setFormData({ ...itemPickerForm, items: newItems });
+                      setItemPickerOpen(false);
+                    }}>
+                      <TableCell className="text-sm py-2 font-medium">{inv.name}</TableCell>
+                      <TableCell className="font-mono text-sm py-2">{inv.sku}</TableCell>
+                      <TableCell className="text-sm py-2">{inv.categories?.name || '-'}</TableCell>
+                      <TableCell className="text-right text-sm py-2">{inv.quantity}</TableCell>
+                      <TableCell className="text-right text-sm py-2">ETB {(inv.cost_price || 0).toFixed(2)}</TableCell>
+                      <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
+                    </TableRow>
+                  ));
+                })()}
+              </TableBody>
+            </Table>
+          </div>
         </DialogContent>
       </Dialog>
 
