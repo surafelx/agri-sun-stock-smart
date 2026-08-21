@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Edit, Trash2, FileText, Search, Filter } from "lucide-react";
+import { Plus, Package, Edit, Trash2, FileText, Search, Filter, ArrowRightLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Items = () => {
@@ -348,7 +348,8 @@ const Items = () => {
                           <TableCell className="text-sm py-2">{item.uom || "N/A"}</TableCell>
                           <TableCell className="text-right py-2">
                             <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="sm" onClick={() => navigate(`/stock-card/${item.id}`)} className="h-7 w-7 p-0"><FileText className="h-3.5 w-3.5" /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => navigate(`/stock-card/${item.id}`)} className="h-7 w-7 p-0" title="Stock Card"><FileText className="h-3.5 w-3.5" /></Button>
+                              <Button variant="ghost" size="sm" onClick={() => navigate(`/transfer-card/${item.id}`)} className="h-7 w-7 p-0" title="Transfer Cost Sheet"><ArrowRightLeft className="h-3.5 w-3.5" /></Button>
                               <Button variant="ghost" size="sm" onClick={() => openEditDialog(item)} className="h-7 w-7 p-0"><Edit className="h-3.5 w-3.5" /></Button>
                               <Button variant="ghost" size="sm" onClick={() => handleDelete(item.id)} className="h-7 w-7 p-0"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
                             </div>
