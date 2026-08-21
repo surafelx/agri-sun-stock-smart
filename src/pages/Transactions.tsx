@@ -252,6 +252,16 @@ const Transactions = () => {
 
   const filteredTxList = txList;
 
+  const uniqueSuppliers = Array.from(new Map(
+    txList
+      .filter((tx) => tx.customer_supplier_name)
+      .map((tx) => [tx.customer_supplier_name, {
+        name: tx.customer_supplier_name,
+        contact: tx.customer_supplier_contact || "",
+        tinNo: tx.tin_no || tx.tinNo || "",
+      }])
+  ).values());
+
   const renderItemRows = (formState: typeof formData, setFormState: (f: any) => void) => (
     <div className="space-y-2">
       <div className="grid grid-cols-6 gap-2 text-xs font-medium text-muted-foreground">
@@ -327,7 +337,16 @@ const Transactions = () => {
                   <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2"><Label>{formData.type === 'purchase' ? 'Supplier' : formData.type === 'transfer' ? 'From' : 'Customer'} Name *</Label><Input value={formData.customerSupplier} onChange={(e) => setFormData({ ...formData, customerSupplier: e.target.value })} required /></div>
+                  <div className="space-y-2">
+                    <Label>{formData.type === 'purchase' ? 'Supplier' : formData.type === 'transfer' ? 'From' : 'Customer'} Name *</Label>
+                    <input list="supplier-list" value={formData.customerSupplier} onChange={(e) => setFormData({ ...formData, customerSupplier: e.target.value })} onSelect={(e) => {
+                      const selected = uniqueSuppliers.find((s) => s.name === e.currentTarget.value);
+                      if (selected) setFormData({ ...formData, customerSupplier: selected.name, contact: selected.contact, tinNo: selected.tinNo });
+                    }} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" required />
+                    <datalist id="supplier-list">
+                      {uniqueSuppliers.map((s) => <option key={s.name} value={s.name} />)}
+                    </datalist>
+                  </div>
                   <div className="space-y-2"><Label>TIN No</Label><Input value={formData.tinNo} onChange={(e) => setFormData({ ...formData, tinNo: e.target.value })} placeholder="Tax ID" /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
