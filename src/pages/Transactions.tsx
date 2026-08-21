@@ -724,11 +724,21 @@ const Transactions = () => {
                   <div><span className="font-medium text-muted-foreground">Date:</span> <span className="ml-2">{new Date(viewTx.transaction_date).toLocaleDateString()}</span></div>
                   <div><span className="font-medium text-muted-foreground">{viewTx.transaction_type === 'purchase' ? 'Supplier' : viewTx.transaction_type === 'transfer' ? 'From' : 'Customer'}:</span> <span className="ml-2">{viewTx.customer_supplier_name}</span></div>
                   {viewTx.customer_supplier_contact && <div><span className="font-medium text-muted-foreground">Contact:</span> <span className="ml-2">{viewTx.customer_supplier_contact}</span></div>}
+                  {viewTx.tin_no && <div><span className="font-medium text-muted-foreground">TIN Number:</span> <span className="ml-2 font-mono">{viewTx.tin_no}</span></div>}
                   {viewTx.notes && <div><span className="font-medium text-muted-foreground">Notes:</span> <span className="ml-2">{viewTx.notes}</span></div>}
+                  <div><span className="font-medium text-muted-foreground">Created:</span> <span className="ml-2">{viewTx.created_at ? new Date(viewTx.created_at).toLocaleString() : '-'}</span></div>
                 </div>
-                <div className="text-right">
+                <div className="text-right space-y-1">
                   <div className="text-lg font-bold">ETB {viewTx.total_amount?.toLocaleString()}</div>
                   <p className="text-xs text-muted-foreground">{viewTx.items?.length || 0} item(s)</p>
+                  {viewTx.transaction_type === 'sale' && (
+                    <div className="text-sm">
+                      <span className="text-muted-foreground">Profit: </span>
+                      <span className={`font-bold ${viewTx.items?.reduce((s: number, li: any) => s + (li.profit || 0), 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        ETB {viewTx.items?.reduce((s: number, li: any) => s + (li.profit || 0), 0).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -742,6 +752,7 @@ const Transactions = () => {
                         <TableHead className="h-8 text-xs text-right">Qty</TableHead>
                         <TableHead className="h-8 text-xs text-right">Unit Price</TableHead>
                         <TableHead className="h-8 text-xs text-right">Total</TableHead>
+                        {viewTx.transaction_type === 'sale' && <TableHead className="h-8 text-xs text-right">Profit</TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -752,6 +763,11 @@ const Transactions = () => {
                           <TableCell className="text-right text-sm py-2">{li.quantity}</TableCell>
                           <TableCell className="text-right text-sm py-2">ETB {li.unit_price?.toFixed(2)}</TableCell>
                           <TableCell className="text-right text-sm py-2 font-semibold">ETB {li.total_price?.toFixed(2)}</TableCell>
+                          {viewTx.transaction_type === 'sale' && (
+                            <TableCell className="text-right text-sm py-2">
+                              <Badge variant={(li.profit || 0) >= 0 ? "default" : "destructive"}>ETB {(li.profit || 0).toFixed(2)}</Badge>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>
