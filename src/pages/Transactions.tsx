@@ -288,9 +288,25 @@ const Transactions = () => {
             </Select>
           </div>
           <div>
-            <Button type="button" variant="outline" className="w-full justify-start text-left h-10 font-normal" onClick={() => { setItemPickerIndex(index); setItemPickerForm(formState); setItemPickerSearch(""); setItemPickerOpen(true); }}>
-              {item.itemId ? itemsList.find((i) => i.id === item.itemId)?.name || "Selected" : "Select item"}
-            </Button>
+            {formState.type === 'purchase' ? (
+              <Select value={item.itemId || ""} onValueChange={(v) => {
+                const selected = itemsList.find((i) => i.id === v);
+                const updates = updateFormItem(formState, index, 'itemId', v);
+                if (selected) {
+                  updates[index] = { ...updates[index], unitPrice: String(selected.cost_price || selected.unit_price || 0) };
+                }
+                setFormState({ ...formState, items: updates });
+              }}>
+                <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
+                <SelectContent>
+                  {itemsList.map((i) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.sku})</SelectItem>)}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Button type="button" variant="outline" className="w-full justify-start text-left h-10 font-normal" onClick={() => { setItemPickerIndex(index); setItemPickerForm(formState); setItemPickerSearch(""); setItemPickerOpen(true); }}>
+                {item.itemId ? itemsList.find((i) => i.id === item.itemId)?.name || "Selected" : "Select item"}
+              </Button>
+            )}
           </div>
           <div>
             <Input type="number" step="0.01" value={item.quantity} onChange={(e) => setFormState({ ...formState, items: updateFormItem(formState, index, 'quantity', e.target.value) })} placeholder="0" />
