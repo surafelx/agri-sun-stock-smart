@@ -26,6 +26,7 @@ const Items = () => {
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [viewMode, setViewMode] = useState<"items" | "stock">("items");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -154,9 +155,24 @@ const Items = () => {
 
   const formatCurrency = (v: number) => "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const filteredItems = itemsList;
+  const filteredItems = itemsList.filter((item) => {
+    if (statusFilter === "all") return true;
+    const qty = item.quantity ?? 0;
+    const threshold = item.low_stock_threshold ?? 10;
+    if (statusFilter === "in_stock") return qty > threshold;
+    if (statusFilter === "low_stock") return qty > 0 && qty <= threshold;
+    if (statusFilter === "out_of_stock") return qty === 0;
+    return true;
+  });
 
-  const filteredBalance = balanceList;
+  const filteredBalance = balanceList.filter((b) => {
+    if (statusFilter === "all") return true;
+    const qty = b.quantity ?? 0;
+    if (statusFilter === "in_stock") return qty > 0 && !b.isLowStock;
+    if (statusFilter === "low_stock") return b.isLowStock && qty > 0;
+    if (statusFilter === "out_of_stock") return qty === 0;
+    return true;
+  });
 
   const totalBalance = filteredBalance.reduce((s, i) => s + (i.quantity || 0), 0);
   const totalValue = filteredBalance.reduce((s, i) => s + (i.inventoryValue || 0), 0);
@@ -244,8 +260,17 @@ const Items = () => {
                     {categoriesList.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                {(searchTerm || selectedCategory !== "all") && (
-                  <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setSelectedCategory("all"); }}>Clear</Button>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="All Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="in_stock">In Stock</SelectItem>
+                    <SelectItem value="low_stock">Low Stock</SelectItem>
+                    <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(searchTerm || selectedCategory !== "all" || statusFilter !== "all") && (
+                  <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setSelectedCategory("all"); setStatusFilter("all"); }}>Clear</Button>
                 )}
               </div>
             </div>
