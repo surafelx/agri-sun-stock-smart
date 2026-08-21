@@ -27,6 +27,7 @@ const Items = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [colSearch, setColSearch] = useState({ sku: "", name: "", category: "", subcategory: "", uom: "" });
   const [viewMode, setViewMode] = useState<"items" | "stock">("items");
   const [debouncedSearch, setDebouncedSearch] = useState("");
 
@@ -156,13 +157,21 @@ const Items = () => {
   const formatCurrency = (v: number) => "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const filteredItems = itemsList.filter((item) => {
-    if (statusFilter === "all") return true;
-    const qty = item.quantity ?? 0;
-    const threshold = item.low_stock_threshold ?? 10;
-    if (statusFilter === "in_stock") return qty > threshold;
-    if (statusFilter === "low_stock") return qty > 0 && qty <= threshold;
-    if (statusFilter === "out_of_stock") return qty === 0;
-    return true;
+    const matchStatus = (() => {
+      if (statusFilter === "all") return true;
+      const qty = item.quantity ?? 0;
+      const threshold = item.low_stock_threshold ?? 10;
+      if (statusFilter === "in_stock") return qty > threshold;
+      if (statusFilter === "low_stock") return qty > 0 && qty <= threshold;
+      if (statusFilter === "out_of_stock") return qty === 0;
+      return true;
+    })();
+    const matchCol = (!colSearch.sku || item.sku?.toLowerCase().includes(colSearch.sku.toLowerCase()))
+      && (!colSearch.name || item.name?.toLowerCase().includes(colSearch.name.toLowerCase()))
+      && (!colSearch.category || item.categories?.name?.toLowerCase().includes(colSearch.category.toLowerCase()))
+      && (!colSearch.subcategory || item.subcategories?.name?.toLowerCase().includes(colSearch.subcategory.toLowerCase()))
+      && (!colSearch.uom || item.uom?.toLowerCase().includes(colSearch.uom.toLowerCase()));
+    return matchStatus && matchCol;
   });
 
   const filteredBalance = balanceList.filter((b) => {
@@ -269,8 +278,8 @@ const Items = () => {
                     <SelectItem value="out_of_stock">Out of Stock</SelectItem>
                   </SelectContent>
                 </Select>
-                {(searchTerm || selectedCategory !== "all" || statusFilter !== "all") && (
-                  <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setSelectedCategory("all"); setStatusFilter("all"); }}>Clear</Button>
+                {(searchTerm || selectedCategory !== "all" || statusFilter !== "all" || Object.values(colSearch).some(Boolean)) && (
+                  <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setSelectedCategory("all"); setStatusFilter("all"); setColSearch({ sku: "", name: "", category: "", subcategory: "", uom: "" }); }}>Clear</Button>
                 )}
               </div>
             </div>
@@ -307,6 +316,24 @@ const Items = () => {
                         <TableHead className="h-9 text-xs">Subcategory</TableHead>
                         <TableHead className="h-9 text-xs">UOM</TableHead>
                         <TableHead className="h-9 text-xs text-right">Actions</TableHead>
+                      </TableRow>
+                      <TableRow>
+                        <TableHead className="py-1 px-1">
+                          <Input placeholder="Filter SKU..." value={colSearch.sku} onChange={(e) => setColSearch({ ...colSearch, sku: e.target.value })} className="h-7 text-xs" />
+                        </TableHead>
+                        <TableHead className="py-1 px-1">
+                          <Input placeholder="Filter name..." value={colSearch.name} onChange={(e) => setColSearch({ ...colSearch, name: e.target.value })} className="h-7 text-xs" />
+                        </TableHead>
+                        <TableHead className="py-1 px-1">
+                          <Input placeholder="Filter category..." value={colSearch.category} onChange={(e) => setColSearch({ ...colSearch, category: e.target.value })} className="h-7 text-xs" />
+                        </TableHead>
+                        <TableHead className="py-1 px-1">
+                          <Input placeholder="Filter subcategory..." value={colSearch.subcategory} onChange={(e) => setColSearch({ ...colSearch, subcategory: e.target.value })} className="h-7 text-xs" />
+                        </TableHead>
+                        <TableHead className="py-1 px-1">
+                          <Input placeholder="Filter UOM..." value={colSearch.uom} onChange={(e) => setColSearch({ ...colSearch, uom: e.target.value })} className="h-7 text-xs" />
+                        </TableHead>
+                        <TableHead />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
