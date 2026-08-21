@@ -27,6 +27,7 @@ const Items = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [viewMode, setViewMode] = useState<"items" | "stock">("items");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
 
   const [formData, setFormData] = useState({
     name: "", sku: "", category_id: "", subcategory_id: "", description: "",
@@ -38,16 +39,21 @@ const Items = () => {
   }, []);
 
   useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  useEffect(() => {
     if (viewMode === "stock") fetchBalance();
     else fetchItems();
-  }, [viewMode, selectedCategory]);
+  }, [viewMode, selectedCategory, debouncedSearch]);
 
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const params: Record<string, string> = {};
+      const params: Record<string, string> = { limit: "500" };
       if (selectedCategory && selectedCategory !== "all") params.category = selectedCategory;
-      if (searchTerm) params.search = searchTerm;
+      if (debouncedSearch) params.search = debouncedSearch;
       const res = await itemsApi.list(params);
       setItemsList((res.items || []).map(normalizeItem));
     } catch (err: any) {
@@ -60,9 +66,9 @@ const Items = () => {
   const fetchBalance = async () => {
     setLoading(true);
     try {
-      const params: Record<string, string> = { limit: "200" };
+      const params: Record<string, string> = { limit: "500" };
       if (selectedCategory && selectedCategory !== "all") params.category = selectedCategory;
-      if (searchTerm) params.search = searchTerm;
+      if (debouncedSearch) params.search = debouncedSearch;
       const res = await stockBalance.list(params);
       setBalanceList(res.balances || []);
     } catch (err: any) {
@@ -148,17 +154,9 @@ const Items = () => {
 
   const formatCurrency = (v: number) => "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const filteredItems = itemsList.filter((item) => {
-    if (!searchTerm) return true;
-    const t = searchTerm.toLowerCase();
-    return item.name?.toLowerCase().includes(t) || item.sku?.toLowerCase().includes(t) || item.categories?.name?.toLowerCase().includes(t);
-  });
+  const filteredItems = itemsList;
 
-  const filteredBalance = balanceList.filter((b) => {
-    if (!searchTerm) return true;
-    const t = searchTerm.toLowerCase();
-    return b.name?.toLowerCase().includes(t) || b.sku?.toLowerCase().includes(t);
-  });
+  const filteredBalance = balanceList;
 
   const totalBalance = filteredBalance.reduce((s, i) => s + (i.quantity || 0), 0);
   const totalValue = filteredBalance.reduce((s, i) => s + (i.inventoryValue || 0), 0);
