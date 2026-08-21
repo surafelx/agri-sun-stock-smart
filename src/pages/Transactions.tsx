@@ -45,6 +45,9 @@ const Transactions = () => {
   const [txPickerOpen, setTxPickerOpen] = useState(false);
   const [txPickerSearch, setTxPickerSearch] = useState("");
   const [txPickerTarget, setTxPickerTarget] = useState<"create" | "edit">("create");
+  const [itemPickerSelected, setItemPickerSelected] = useState<any | null>(null);
+  const [itemPickerStockCard, setItemPickerStockCard] = useState<any[]>([]);
+  const [itemPickerStockLoading, setItemPickerStockLoading] = useState(false);
 
   const defaultForm = { type: "purchase" as TxType, reference: "", customerSupplier: "", contact: "", notes: "", date: new Date().toISOString().split('T')[0], tinNo: "", items: [emptyItem()] };
   const [formData, setFormData] = useState(defaultForm);
@@ -519,60 +522,126 @@ const Transactions = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={itemPickerOpen} onOpenChange={(open) => { if (!open) setItemPickerOpen(false); }}>
+      <Dialog open={itemPickerOpen} onOpenChange={(open) => { if (!open) { setItemPickerOpen(false); setItemPickerSelected(null); setItemPickerStockCard([]); } }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg">Select Item</DialogTitle>
-            <DialogDescription>Search and choose an item for this line</DialogDescription>
+            <DialogTitle className="text-lg">{itemPickerSelected ? `${itemPickerSelected.name} — Purchase History` : "Select Item"}</DialogTitle>
+            <DialogDescription>{itemPickerSelected ? "Choose a specific purchase to reference" : "Search and choose an item for this line"}</DialogDescription>
           </DialogHeader>
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search by name, SKU, category..." value={itemPickerSearch} onChange={(e) => setItemPickerSearch(e.target.value)} className="pl-9" autoFocus />
-          </div>
-          <div className="border rounded-lg max-h-[50vh] overflow-y-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="h-8 text-xs">Name</TableHead>
-                  <TableHead className="h-8 text-xs">SKU</TableHead>
-                  <TableHead className="h-8 text-xs">Category</TableHead>
-                  <TableHead className="h-8 text-xs text-right">Qty</TableHead>
-                  <TableHead className="h-8 text-xs text-right">Cost Price</TableHead>
-                  <TableHead className="h-8 text-xs text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {(() => {
-                  const row = itemPickerForm?.items?.[itemPickerIndex];
-                  const filtered = itemsList.filter((inv) => {
-                    const matchCat = !row?.categoryId || inv.category_id === row.categoryId;
-                    const matchSub = !row?.subcategoryId || inv.subcategory_id === row.subcategoryId;
-                    const matchSearch = !itemPickerSearch || (() => {
-                      const t = itemPickerSearch.toLowerCase();
-                      return inv.name?.toLowerCase().includes(t) || inv.sku?.toLowerCase().includes(t) || inv.categories?.name?.toLowerCase().includes(t);
-                    })();
-                    return matchCat && matchSub && matchSearch;
-                  });
-                  if (filtered.length === 0) return <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">No items found</TableCell></TableRow>;
-                  return filtered.map((inv) => (
-                    <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50" onClick={() => {
-                      const newItems = [...itemPickerForm.items];
-                      newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: inv.id, quantity: String(inv.quantity ?? ""), unitPrice: String(inv.cost_price || inv.unit_price || "") };
-                      setFormData({ ...itemPickerForm, items: newItems });
-                      setItemPickerOpen(false);
-                    }}>
-                      <TableCell className="text-sm py-2 font-medium">{inv.name}</TableCell>
-                      <TableCell className="font-mono text-sm py-2">{inv.sku}</TableCell>
-                      <TableCell className="text-sm py-2">{inv.categories?.name || '-'}</TableCell>
-                      <TableCell className="text-right text-sm py-2">{inv.quantity}</TableCell>
-                      <TableCell className="text-right text-sm py-2">ETB {(inv.cost_price || 0).toFixed(2)}</TableCell>
-                      <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
+          {itemPickerSelected ? (
+            <>
+              <Button variant="ghost" size="sm" className="mb-2 w-fit" onClick={() => { setItemPickerSelected(null); setItemPickerStockCard([]); }}>
+                <ArrowLeft className="h-4 w-4 mr-1" />Back to items
+              </Button>
+              {itemPickerStockLoading ? (
+                <div className="flex items-center justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
+              ) : itemPickerStockCard.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-sm text-muted-foreground mb-3">No purchase history found for this item</p>
+                  <Button variant="outline" size="sm" onClick={() => {
+                    const newItems = [...itemPickerForm.items];
+                    newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(itemPickerSelected.quantity ?? ""), unitPrice: String(itemPickerSelected.cost_price || itemPickerSelected.unit_price || "") };
+                    setFormData({ ...itemPickerForm, items: newItems });
+                    setItemPickerOpen(false);
+                    setItemPickerSelected(null);
+                  }}>Select without purchase reference</Button>
+                </div>
+              ) : (
+                <div className="border rounded-lg max-h-[50vh] overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="h-8 text-xs">Date</TableHead>
+                        <TableHead className="h-8 text-xs">Reference</TableHead>
+                        <TableHead className="h-8 text-xs">Supplier</TableHead>
+                        <TableHead className="h-8 text-xs text-right">Qty In</TableHead>
+                        <TableHead className="h-8 text-xs text-right">Unit Price</TableHead>
+                        <TableHead className="h-8 text-xs text-right">Balance</TableHead>
+                        <TableHead className="h-8 text-xs text-right">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {itemPickerStockCard.filter((mv) => mv.quantityIn > 0).map((mv, idx) => (
+                        <TableRow key={mv.id || idx} className="cursor-pointer hover:bg-muted/50" onClick={() => {
+                          const newItems = [...itemPickerForm.items];
+                          newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(mv.quantityIn), unitPrice: String(mv.unitPrice) };
+                          setFormData({ ...itemPickerForm, items: newItems });
+                          setItemPickerOpen(false);
+                          setItemPickerSelected(null);
+                          setItemPickerStockCard([]);
+                        }}>
+                          <TableCell className="text-xs py-2">{new Date(mv.date).toLocaleDateString()}</TableCell>
+                          <TableCell className="font-mono text-xs py-2">{mv.reference || '-'}</TableCell>
+                          <TableCell className="text-xs py-2">{mv.customerSupplier || '-'}</TableCell>
+                          <TableCell className="text-right text-xs py-2 font-medium">{mv.quantityIn}</TableCell>
+                          <TableCell className="text-right text-xs py-2">ETB {mv.unitPrice?.toFixed(2)}</TableCell>
+                          <TableCell className="text-right text-xs py-2">{mv.balance}</TableCell>
+                          <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div className="relative mb-3">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search by name, SKU, category..." value={itemPickerSearch} onChange={(e) => setItemPickerSearch(e.target.value)} className="pl-9" autoFocus />
+              </div>
+              <div className="border rounded-lg max-h-[50vh] overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="h-8 text-xs">Name</TableHead>
+                      <TableHead className="h-8 text-xs">SKU</TableHead>
+                      <TableHead className="h-8 text-xs">Category</TableHead>
+                      <TableHead className="h-8 text-xs text-right">Qty</TableHead>
+                      <TableHead className="h-8 text-xs text-right">Cost Price</TableHead>
+                      <TableHead className="h-8 text-xs text-right">Action</TableHead>
                     </TableRow>
-                  ));
-                })()}
-              </TableBody>
-            </Table>
-          </div>
+                  </TableHeader>
+                  <TableBody>
+                    {(() => {
+                      const row = itemPickerForm?.items?.[itemPickerIndex];
+                      const filtered = itemsList.filter((inv) => {
+                        const matchCat = !row?.categoryId || inv.category_id === row.categoryId;
+                        const matchSub = !row?.subcategoryId || inv.subcategory_id === row.subcategoryId;
+                        const matchSearch = !itemPickerSearch || (() => {
+                          const t = itemPickerSearch.toLowerCase();
+                          return inv.name?.toLowerCase().includes(t) || inv.sku?.toLowerCase().includes(t) || inv.categories?.name?.toLowerCase().includes(t);
+                        })();
+                        return matchCat && matchSub && matchSearch;
+                      });
+                      if (filtered.length === 0) return <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">No items found</TableCell></TableRow>;
+                      return filtered.map((inv) => (
+                        <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50" onClick={async () => {
+                          setItemPickerSelected(inv);
+                          setItemPickerStockLoading(true);
+                          try {
+                            const res = await itemsApi.stockCard(inv.id);
+                            setItemPickerStockCard(res.movements || []);
+                          } catch {
+                            setItemPickerStockCard([]);
+                          } finally {
+                            setItemPickerStockLoading(false);
+                          }
+                        }}>
+                          <TableCell className="text-sm py-2 font-medium">{inv.name}</TableCell>
+                          <TableCell className="font-mono text-sm py-2">{inv.sku}</TableCell>
+                          <TableCell className="text-sm py-2">{inv.categories?.name || '-'}</TableCell>
+                          <TableCell className="text-right text-sm py-2">{inv.quantity}</TableCell>
+                          <TableCell className="text-right text-sm py-2">ETB {(inv.cost_price || 0).toFixed(2)}</TableCell>
+                          <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
+                        </TableRow>
+                      ));
+                    })()}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
