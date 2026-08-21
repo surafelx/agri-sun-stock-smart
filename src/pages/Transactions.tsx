@@ -496,8 +496,23 @@ const Transactions = () => {
                   if (filtered.length === 0) return <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">No transactions found</TableCell></TableRow>;
                   return filtered.map((tx) => (
                     <TableRow key={tx.id} className="cursor-pointer hover:bg-muted/50" onClick={() => {
+                      const txItems = (tx.items || []).map((li: any) => ({
+                        categoryId: li.items?.category_id || "",
+                        subcategoryId: li.items?.subcategory_id || "",
+                        itemId: li.item_id || li.items?.id || "",
+                        quantity: String(li.quantity ?? ""),
+                        unitPrice: String(li.unit_price ?? ""),
+                      }));
                       if (txPickerTarget === "create") {
-                        setFormData({ ...formData, reference: tx.reference_number, type: tx.transaction_type, customerSupplier: tx.customer_supplier_name || "", contact: tx.customer_supplier_contact || "", date: tx.transaction_date ? new Date(tx.transaction_date).toISOString().split('T')[0] : formData.date });
+                        setFormData({
+                          ...formData,
+                          reference: tx.reference_number,
+                          type: tx.transaction_type,
+                          customerSupplier: tx.customer_supplier_name || "",
+                          contact: tx.customer_supplier_contact || "",
+                          date: tx.transaction_date ? new Date(tx.transaction_date).toISOString().split('T')[0] : formData.date,
+                          items: txItems.length > 0 ? txItems : [emptyItem()],
+                        });
                       } else {
                         setEditFormData({ ...editFormData, reference: tx.reference_number });
                       }
