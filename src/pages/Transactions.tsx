@@ -253,35 +253,38 @@ const Transactions = () => {
   const filteredTxList = txList;
 
   const renderItemRows = (formState: typeof formData, setFormState: (f: any) => void) => (
-    <div className="space-y-3">
+    <div className="space-y-2">
+      <div className="grid grid-cols-6 gap-2 text-xs font-medium text-muted-foreground">
+        <div>Category</div>
+        <div>Subcategory</div>
+        <div>Item</div>
+        <div>Qty</div>
+        <div>Unit Price</div>
+        <div></div>
+      </div>
       {formState.items.map((item, index) => (
         <div key={index} className="grid grid-cols-6 gap-2 items-end">
-          <div className="space-y-2">
-            <Label>Category</Label>
+          <div>
             <Select value={item.categoryId} onValueChange={(v) => setFormState({ ...formState, items: updateFormItem(formState, index, 'categoryId', v) })}>
               <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
               <SelectContent>{categoriesList.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>Subcategory</Label>
+          <div>
             <Select value={item.subcategoryId} onValueChange={(v) => setFormState({ ...formState, items: updateFormItem(formState, index, 'subcategoryId', v) })}>
               <SelectTrigger><SelectValue placeholder="Subcategory" /></SelectTrigger>
               <SelectContent>{subcategoriesList.filter((s) => !item.categoryId || s.category_id === item.categoryId).map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label>Item</Label>
+          <div>
             <Button type="button" variant="outline" className="w-full justify-start text-left h-10 font-normal" onClick={() => { setItemPickerIndex(index); setItemPickerForm(formState); setItemPickerSearch(""); setItemPickerOpen(true); }}>
               {item.itemId ? itemsList.find((i) => i.id === item.itemId)?.name || "Selected" : "Select item"}
             </Button>
           </div>
-          <div className="space-y-2">
-            <Label>Qty</Label>
+          <div>
             <Input type="number" step="0.01" value={item.quantity} onChange={(e) => setFormState({ ...formState, items: updateFormItem(formState, index, 'quantity', e.target.value) })} placeholder="0" />
           </div>
-          <div className="space-y-2">
-            <Label>Unit Price</Label>
+          <div>
             <Input type="number" step="0.01" value={item.unitPrice} onChange={(e) => setFormState({ ...formState, items: updateFormItem(formState, index, 'unitPrice', e.target.value) })} placeholder="0.00" />
           </div>
           <div className="flex items-end gap-0.5 pb-0.5">
@@ -289,7 +292,7 @@ const Transactions = () => {
               <Plus className="h-4 w-4" />
             </Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => setFormState({ ...formState, items: formState.items.filter((_, i) => i !== index) })} disabled={formState.items.length === 1} className="h-9 w-9 p-0">
-              <Trash2 className="h-4 w-4 text-destructive" />
+              <Trash2 className="h-3.5 w-3.5 text-destructive" />
             </Button>
           </div>
         </div>
