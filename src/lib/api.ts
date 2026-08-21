@@ -242,6 +242,8 @@ export const stockBalance = {
     request<{ balances: any[]; total: number }>('/stock-balance?' + new URLSearchParams(params || {}).toString()),
 
   get: (itemId: string) => request<{ item: any; summary: any }>(`/stock-balance/${itemId}`),
+
+  recalculate: () => request<{ message: string; updated: number }>('/stock-balance/recalculate', { method: 'POST' }),
 };
 
 // ── Activity Log ──────────────────────────────────────────────────────────────

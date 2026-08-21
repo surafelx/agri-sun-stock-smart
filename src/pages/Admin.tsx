@@ -11,7 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Shield, Plus, Trash2, Tag, Pencil, Search, Truck } from "lucide-react";
+import { Settings, Users, Shield, Plus, Trash2, Tag, Pencil, Search, Truck, RefreshCw } from "lucide-react";
+import { stockBalance as sbApi } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
