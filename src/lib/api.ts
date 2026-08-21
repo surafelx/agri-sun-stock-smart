@@ -249,3 +249,19 @@ export const activityLog = {
   list: (params?: Record<string, string>) =>
     request<{ logs: any[]; total: number }>('/activity-log?' + new URLSearchParams(params || {}).toString()),
 };
+
+// ── Suppliers ───────────────────────────────────────────────────────────────
+export const suppliers = {
+  list: (params?: Record<string, string>) =>
+    request<{ suppliers: any[]; total: number }>('/suppliers?' + new URLSearchParams(params || {}).toString()),
+
+  get: (id: string) => request<{ supplier: any }>(`/suppliers/${id}`),
+
+  create: (body: { name: string; tin_no?: string; contact?: string; address?: string; notes?: string }) =>
+    request<{ supplier: any }>('/suppliers', { method: 'POST', body: JSON.stringify(body) }),
+
+  update: (id: string, body: Partial<{ name: string; tin_no: string; contact: string; address: string; notes: string; is_active: boolean }>) =>
+    request<{ supplier: any }>(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+
+  delete: (id: string) => request(`/suppliers/${id}`, { method: 'DELETE' }),
+};

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { users as usersApi, categories as categoriesApi, normalizeUser, normalizeCategory, normalizeSubcategory } from "@/lib/api";
+import { users as usersApi, categories as categoriesApi, suppliers as suppliersApi, normalizeUser, normalizeCategory, normalizeSubcategory } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Shield, Plus, Trash2, Tag, Pencil, Search } from "lucide-react";
+import { Settings, Users, Shield, Plus, Trash2, Tag, Pencil, Search, Truck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
@@ -47,6 +47,14 @@ const Admin = () => {
   const [editSubcategoryName, setEditSubcategoryName] = useState("");
   const [editSubcategoryCategoryId, setEditSubcategoryCategoryId] = useState("");
 
+  const [suppliersList, setSuppliersList] = useState<any[]>([]);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
+  const [editSupplierOpen, setEditSupplierOpen] = useState(false);
+  const [editingSupplier, setEditingSupplier] = useState<any | null>(null);
+  const [newSupplierForm, setNewSupplierForm] = useState({ name: "", tin_no: "", contact: "", address: "", notes: "" });
+  const [editSupplierForm, setEditSupplierForm] = useState({ name: "", tin_no: "", contact: "", address: "", notes: "" });
+
   useEffect(() => {
     if (me?.role !== 'admin') { navigate('/'); return; }
     fetchAll();
@@ -64,7 +72,7 @@ const Admin = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      await Promise.all([fetchUsers(), fetchCategories()]);
+      await Promise.all([fetchUsers(), fetchCategories(), fetchSuppliers()]);
     } finally {
       setLoading(false);
     }
@@ -90,6 +98,59 @@ const Admin = () => {
       );
     }
     setSubcategoriesList(allSubs);
+  };
+
+  const fetchSuppliers = async () => {
+    try {
+      const params: Record<string, string> = { limit: "500" };
+      if (supplierSearch) params.search = supplierSearch;
+      const res = await suppliersApi.list(params);
+      setSuppliersList(res.suppliers || []);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error fetching suppliers", description: err.message });
+    }
+  };
+
+  const handleCreateSupplier = async () => {
+    if (!newSupplierForm.name.trim()) { toast({ variant: "destructive", title: "Error", description: "Name is required" }); return; }
+    try {
+      await suppliersApi.create(newSupplierForm);
+      toast({ title: "Success", description: "Supplier created" });
+      setSupplierDialogOpen(false);
+      setNewSupplierForm({ name: "", tin_no: "", contact: "", address: "", notes: "" });
+      fetchSuppliers();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    }
+  };
+
+  const handleEditSupplier = (s: any) => {
+    setEditingSupplier(s);
+    setEditSupplierForm({ name: s.name || "", tin_no: s.tin_no || "", contact: s.contact || "", address: s.address || "", notes: s.notes || "" });
+    setEditSupplierOpen(true);
+  };
+
+  const handleSaveSupplier = async () => {
+    if (!editingSupplier) return;
+    try {
+      await suppliersApi.update(editingSupplier.id, editSupplierForm);
+      toast({ title: "Success", description: "Supplier updated" });
+      setEditSupplierOpen(false);
+      fetchSuppliers();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    }
+  };
+
+  const handleDeleteSupplier = async (id: string) => {
+    if (!confirm("Delete this supplier?")) return;
+    try {
+      await suppliersApi.delete(id);
+      toast({ title: "Deleted", description: "Supplier deleted" });
+      fetchSuppliers();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    }
   };
 
   const handleCreateUser = async () => {
@@ -240,6 +301,7 @@ const Admin = () => {
           <TabsList>
             <TabsTrigger value="users" className="gap-1.5"><Users className="h-3.5 w-3.5" />Users</TabsTrigger>
             <TabsTrigger value="categories" className="gap-1.5"><Tag className="h-3.5 w-3.5" />Categories</TabsTrigger>
+            <TabsTrigger value="suppliers" className="gap-1.5"><Truck className="h-3.5 w-3.5" />Suppliers</TabsTrigger>
           </TabsList>
 
           {/* ── Users Tab ── */}
@@ -480,6 +542,84 @@ const Admin = () => {
                 </div>
               </DialogContent>
             </Dialog>
+
+            <Dialog open={editSupplierOpen} onOpenChange={setEditSupplierOpen}>
+              <DialogContent>
+                <DialogHeader><DialogTitle>Edit Supplier</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                  <div className="space-y-1"><Label>Name</Label><Input value={editSupplierForm.name} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, name: e.target.value })} /></div>
+                  <div className="space-y-1"><Label>TIN No</Label><Input value={editSupplierForm.tin_no} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, tin_no: e.target.value })} /></div>
+                  <div className="space-y-1"><Label>Contact</Label><Input value={editSupplierForm.contact} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, contact: e.target.value })} /></div>
+                  <div className="space-y-1"><Label>Address</Label><Input value={editSupplierForm.address} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, address: e.target.value })} /></div>
+                  <div className="space-y-1"><Label>Notes</Label><Input value={editSupplierForm.notes} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, notes: e.target.value })} /></div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button variant="outline" onClick={() => setEditSupplierOpen(false)}>Cancel</Button>
+                    <Button onClick={handleSaveSupplier}>Save</Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </TabsContent>
+          <TabsContent value="suppliers">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <div><CardTitle className="text-base flex items-center gap-2"><Truck className="h-4 w-4" />Supplier Registry</CardTitle><CardDescription className="text-sm">Manage suppliers with TIN and contact info</CardDescription></div>
+                <Dialog open={supplierDialogOpen} onOpenChange={setSupplierDialogOpen}>
+                  <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" />Add Supplier</Button></DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader><DialogTitle>Add Supplier</DialogTitle><DialogDescription>Add a new supplier to the registry</DialogDescription></DialogHeader>
+                    <div className="space-y-3">
+                      <div className="space-y-1"><Label>Name *</Label><Input value={newSupplierForm.name} onChange={(e) => setNewSupplierForm({ ...newSupplierForm, name: e.target.value })} required /></div>
+                      <div className="space-y-1"><Label>TIN No</Label><Input value={newSupplierForm.tin_no} onChange={(e) => setNewSupplierForm({ ...newSupplierForm, tin_no: e.target.value })} placeholder="Tax identification number" /></div>
+                      <div className="space-y-1"><Label>Contact</Label><Input value={newSupplierForm.contact} onChange={(e) => setNewSupplierForm({ ...newSupplierForm, contact: e.target.value })} placeholder="Phone or email" /></div>
+                      <div className="space-y-1"><Label>Address</Label><Input value={newSupplierForm.address} onChange={(e) => setNewSupplierForm({ ...newSupplierForm, address: e.target.value })} placeholder="Address" /></div>
+                      <div className="space-y-1"><Label>Notes</Label><Input value={newSupplierForm.notes} onChange={(e) => setNewSupplierForm({ ...newSupplierForm, notes: e.target.value })} placeholder="Additional notes" /></div>
+                      <div className="flex justify-end gap-2 pt-2">
+                        <Button variant="outline" onClick={() => setSupplierDialogOpen(false)}>Cancel</Button>
+                        <Button onClick={handleCreateSupplier}>Create</Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="relative mb-4">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input placeholder="Search suppliers by name, TIN, contact..." value={supplierSearch} onChange={(e) => { setSupplierSearch(e.target.value); }} className="pl-9" />
+                </div>
+                <div className="border rounded-lg">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="h-9 text-xs">Name</TableHead>
+                        <TableHead className="h-9 text-xs">TIN No</TableHead>
+                        <TableHead className="h-9 text-xs">Contact</TableHead>
+                        <TableHead className="h-9 text-xs">Address</TableHead>
+                        <TableHead className="h-9 text-xs text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {suppliersList.length === 0 ? (
+                        <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground text-sm">No suppliers found</TableCell></TableRow>
+                      ) : suppliersList.filter((s) => !supplierSearch || s.name?.toLowerCase().includes(supplierSearch.toLowerCase()) || s.tin_no?.toLowerCase().includes(supplierSearch.toLowerCase()) || s.contact?.toLowerCase().includes(supplierSearch.toLowerCase())).map((s) => (
+                        <TableRow key={s.id}>
+                          <TableCell className="text-sm py-2 font-medium">{s.name}</TableCell>
+                          <TableCell className="text-sm py-2 font-mono">{s.tin_no || '-'}</TableCell>
+                          <TableCell className="text-sm py-2">{s.contact || '-'}</TableCell>
+                          <TableCell className="text-sm py-2 text-muted-foreground">{s.address || '-'}</TableCell>
+                          <TableCell className="text-right py-2">
+                            <div className="flex justify-end gap-1">
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleEditSupplier(s)}><Pencil className="h-3.5 w-3.5" /></Button>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleDeleteSupplier(s.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
