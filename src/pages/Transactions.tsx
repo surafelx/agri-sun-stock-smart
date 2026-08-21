@@ -104,10 +104,11 @@ const Transactions = () => {
       }));
       if (lineItems.length === 0) { toast({ variant: "destructive", title: "Error", description: "Add at least one item" }); return; }
 
+      const ref = formData.reference || `TRF-${Date.now()}`;
       await txApi.create({
         transactionType: formData.type,
         transactionDate: formData.date,
-        referenceNumber: formData.reference,
+        referenceNumber: ref,
         customerSupplierName: formData.customerSupplier,
         customerSupplierContact: formData.contact || undefined,
         tinNo: formData.tinNo || undefined,
@@ -328,9 +329,9 @@ const Transactions = () => {
                       <SelectContent><SelectItem value="purchase">Purchase</SelectItem><SelectItem value="sale">Sale</SelectItem><SelectItem value="adjustment">Adjustment</SelectItem><SelectItem value="transfer">Transfer</SelectItem></SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1"><Label>Reference Number *</Label>
+                  <div className="space-y-1"><Label>Reference Number {formData.type !== 'transfer' ? '*' : ''}</Label>
                     <div className="flex gap-2">
-                      <Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder="e.g., INV-2024-001" required className="flex-1" />
+                      <Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder={formData.type === 'transfer' ? "Auto-generated if empty" : "e.g., INV-2024-001"} required={formData.type !== 'transfer'} className="flex-1" />
                       <Button type="button" variant="outline" size="sm" onClick={() => { setTxPickerTarget("create"); setTxPickerSearch(""); setTxPickerOpen(true); }}>Select</Button>
                     </div>
                   </div>
@@ -338,11 +339,11 @@ const Transactions = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>{formData.type === 'purchase' ? 'Supplier' : formData.type === 'transfer' ? 'From' : 'Customer'} Name *</Label>
+                    <Label>{formData.type === 'purchase' ? 'Supplier' : formData.type === 'transfer' ? 'From' : 'Customer'} Name {formData.type !== 'transfer' && '*'}</Label>
                     <input list="supplier-list" value={formData.customerSupplier} onChange={(e) => setFormData({ ...formData, customerSupplier: e.target.value })} onSelect={(e) => {
                       const selected = uniqueSuppliers.find((s) => s.name === e.currentTarget.value);
                       if (selected) setFormData({ ...formData, customerSupplier: selected.name, contact: selected.contact, tinNo: selected.tinNo });
-                    }} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" required />
+                    }} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" required={formData.type !== 'transfer'} />
                     <datalist id="supplier-list">
                       {uniqueSuppliers.map((s) => <option key={s.name} value={s.name} />)}
                     </datalist>
