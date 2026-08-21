@@ -513,11 +513,18 @@ const Transactions = () => {
                           type: tx.transaction_type,
                           customerSupplier: tx.customer_supplier_name || "",
                           contact: tx.customer_supplier_contact || "",
+                          tinNo: tx.tin_no || tx.tinNo || "",
                           date: tx.transaction_date ? new Date(tx.transaction_date).toISOString().split('T')[0] : formData.date,
                           items: txItems.length > 0 ? txItems : [emptyItem()],
                         });
                       } else {
-                        setEditFormData({ ...editFormData, reference: tx.reference_number });
+                        setEditFormData({
+                          ...editFormData,
+                          reference: tx.reference_number,
+                          customerSupplier: tx.customer_supplier_name || "",
+                          contact: tx.customer_supplier_contact || "",
+                          tinNo: tx.tin_no || tx.tinNo || "",
+                        });
                       }
                       setTxPickerOpen(false);
                     }}>
