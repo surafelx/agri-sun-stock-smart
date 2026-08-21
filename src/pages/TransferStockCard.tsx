@@ -26,14 +26,10 @@ const TransferStockCard = () => {
     try {
       const [itemRes, txRes] = await Promise.all([
         itemsApi.get(itemId!),
-        txApi.list({ limit: "500", type: "transfer" }),
+        txApi.list({ limit: "500", type: "transfer", itemId: itemId! }),
       ]);
       setItem(normalizeItem(itemRes.item));
-      const allTx = (txRes.transactions || []).map(normalizeTransaction);
-      const itemTransfers = allTx.filter((tx: any) =>
-        tx.items?.some((li: any) => li.item_id === itemId || li.items?.id === itemId)
-      );
-      setTransfers(itemTransfers);
+      setTransfers((txRes.transactions || []).map(normalizeTransaction));
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error loading transfer card", description: err.message });
     } finally {
@@ -49,8 +45,8 @@ const TransferStockCard = () => {
       || tx.notes?.toLowerCase().includes(t);
   });
 
-  const totalQtyIn = transfers.reduce((s, tx) => {
-    return s + (tx.items || []).filter((li: any) => li.item_id === itemId || li.items?.id === itemId).reduce((ss: number, li: any) => ss + (li.quantity || 0), 0);
+  const totalQtyOut = transfers.reduce((s, tx) => {
+    return s + (tx.items || []).reduce((ss: number, li: any) => ss + (li.quantity || 0), 0);
   }, 0);
 
   if (loading) {
@@ -111,7 +107,7 @@ const TransferStockCard = () => {
           <CardContent className="pt-0">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
               <div><p className="text-muted-foreground text-xs">Cost Price</p><p className="font-semibold">ETB {item.cost_price}</p></div>
-              <div><p className="text-muted-foreground text-xs">Total Qty Transferred</p><p className="font-semibold">{totalQtyIn}</p></div>
+              <div><p className="text-muted-foreground text-xs">Total Qty Transferred Out</p><p className="font-semibold">{totalQtyOut}</p></div>
               <div>
                 <p className="text-muted-foreground text-xs">Current Balance</p>
                 <Badge variant={item.quantity > 0 ? "secondary" : "destructive"} className="text-xs">
@@ -154,7 +150,7 @@ const TransferStockCard = () => {
                   </TableHeader>
                   <TableBody>
                     {filteredTransfers.map((tx) => {
-                      const lineItem = (tx.items || []).find((li: any) => li.item_id === itemId || li.items?.id === itemId);
+                      const lineItem = (tx.items || []).find((li: any) => li.item_id === itemId);
                       return (
                         <TableRow key={tx.id}>
                           <TableCell className="py-2 text-xs">
