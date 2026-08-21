@@ -51,7 +51,7 @@ const Items = () => {
   const fetchItems = async () => {
     setLoading(true);
     try {
-      const params: Record<string, string> = { limit: "500" };
+      const params: Record<string, string> = { limit: "1000" };
       if (selectedCategory && selectedCategory !== "all") params.category = selectedCategory;
       if (debouncedSearch) params.search = debouncedSearch;
       const res = await itemsApi.list(params);
@@ -66,7 +66,7 @@ const Items = () => {
   const fetchBalance = async () => {
     setLoading(true);
     try {
-      const params: Record<string, string> = { limit: "500" };
+      const params: Record<string, string> = { limit: "1000" };
       if (selectedCategory && selectedCategory !== "all") params.category = selectedCategory;
       if (debouncedSearch) params.search = debouncedSearch;
       const res = await stockBalance.list(params);
