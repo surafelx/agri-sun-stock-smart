@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit, ArrowRightLeft, Search } from "lucide-react";
+import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit, ArrowRightLeft, Search, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
@@ -621,7 +621,7 @@ const Transactions = () => {
                           setItemPickerStockLoading(true);
                           try {
                             const res = await itemsApi.stockCard(inv.id);
-                            setItemPickerStockCard(res.movements || []);
+                            setItemPickerStockCard(Array.isArray(res?.movements) ? res.movements : []);
                           } catch {
                             setItemPickerStockCard([]);
                           } finally {
