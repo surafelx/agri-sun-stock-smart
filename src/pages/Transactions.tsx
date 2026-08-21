@@ -99,8 +99,8 @@ const Transactions = () => {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const lineItems = formData.items.filter((i) => i.itemId && i.quantity && i.unitPrice).map((i) => ({
-        item: i.itemId, quantity: parseFloat(i.quantity), unitPrice: parseFloat(i.unitPrice),
+      const lineItems = formData.items.filter((i) => i.itemId && i.quantity).map((i) => ({
+        item: i.itemId, quantity: parseFloat(i.quantity), unitPrice: parseFloat(i.unitPrice) || 0,
       }));
       if (lineItems.length === 0) { toast({ variant: "destructive", title: "Error", description: "Add at least one item" }); return; }
 
