@@ -8,6 +8,7 @@ import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import Items from "./pages/Items";
 import StockCard from "./pages/StockCard";
+import TransferStockCard from "./pages/TransferStockCard";
 import StockBalance from "./pages/StockBalance";
 import Transactions from "./pages/Transactions";
 import TransactionDetail from "./pages/TransactionDetail";
@@ -29,6 +30,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/items" element={<Items />} />
           <Route path="/stock-card/:itemId" element={<StockCard />} />
+          <Route path="/transfer-card/:itemId" element={<TransferStockCard />} />
           <Route path="/stock-balance" element={<StockBalance />} />
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/transactions/:transactionId" element={<TransactionDetail />} />
