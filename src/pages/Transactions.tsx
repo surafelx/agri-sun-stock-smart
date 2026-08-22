@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { transactions as txApi, items as itemsApi, categories as categoriesApi, normalizeTransaction, normalizeItem, normalizeCategory, normalizeSubcategory } from "@/lib/api";
+import { transactions as txApi, items as itemsApi, categories as categoriesApi, suppliers as suppliersApi, normalizeTransaction, normalizeItem, normalizeCategory, normalizeSubcategory } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +28,7 @@ const Transactions = () => {
   const [itemsList, setItemsList] = useState<any[]>([]);
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
   const [subcategoriesList, setSubcategoriesList] = useState<any[]>([]);
+  const [suppliersList, setSuppliersList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -71,6 +72,8 @@ const Transactions = () => {
       const [txRes, itemRes] = await Promise.all([txApi.list(txParams), itemsApi.list({ limit: "500" })]);
       setTxList((txRes.transactions || []).map(normalizeTransaction));
       setItemsList((itemRes.items || []).map(normalizeItem));
+      const supRes = await suppliersApi.list({ limit: "500" });
+      setSuppliersList((supRes.suppliers || []).map((s: any) => ({ id: s._id || s.id, name: s.name, contact: s.contact || "", tinNo: s.tin_no || s.tinNo || "" })));
       await fetchCategories();
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error fetching data", description: err.message });
@@ -255,28 +258,30 @@ const Transactions = () => {
 
   const filteredTxList = txList;
 
-  const uniqueSuppliers = Array.from(new Map(
-    txList
-      .filter((tx) => tx.customer_supplier_name)
-      .map((tx) => [tx.customer_supplier_name, {
-        name: tx.customer_supplier_name,
-        contact: tx.customer_supplier_contact || "",
-        tinNo: tx.tin_no || tx.tinNo || "",
-      }])
-  ).values());
+  const uniqueSuppliers = Array.from(new Map([
+    ...suppliersList.map((s) => [s.name, s]),
+    ...txList.filter((tx) => tx.customer_supplier_name).map((tx) => [tx.customer_supplier_name, {
+      name: tx.customer_supplier_name,
+      contact: tx.customer_supplier_contact || "",
+      tinNo: tx.tin_no || tx.tinNo || "",
+    }]),
+  ].map(([name, data]: [string, any]) => [name, { name, contact: data.contact || "", tinNo: data.tinNo || "" }])).values());
 
-  const renderItemRows = (formState: typeof formData, setFormState: (f: any) => void) => (
+  const renderItemRows = (formState: typeof formData, setFormState: (f: any) => void) => {
+    const showUnitPrice = formState.type !== 'purchase';
+    const colCount = showUnitPrice ? 6 : 5;
+    return (
     <div className="space-y-2">
-      <div className="grid grid-cols-6 gap-2 text-xs font-medium text-muted-foreground">
+      <div className={`grid grid-cols-${colCount} gap-2 text-xs font-medium text-muted-foreground`}>
         <div>Category</div>
         <div>Subcategory</div>
         <div>Item</div>
         <div>Qty</div>
-        <div>Unit Price</div>
+        {showUnitPrice && <div>Unit Price</div>}
         <div></div>
       </div>
       {formState.items.map((item, index) => (
-        <div key={index} className="grid grid-cols-6 gap-2 items-end">
+        <div key={index} className={`grid grid-cols-${colCount} gap-2 items-end`}>
           <div>
             <Select value={item.categoryId} onValueChange={(v) => setFormState({ ...formState, items: updateFormItem(formState, index, 'categoryId', v) })}>
               <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
@@ -313,9 +318,11 @@ const Transactions = () => {
           <div>
             <Input type="number" step="0.01" value={item.quantity} onChange={(e) => setFormState({ ...formState, items: updateFormItem(formState, index, 'quantity', e.target.value) })} placeholder="0" />
           </div>
+          {showUnitPrice && (
           <div>
             <Input type="number" step="0.01" value={item.unitPrice} onChange={(e) => setFormState({ ...formState, items: updateFormItem(formState, index, 'unitPrice', e.target.value) })} placeholder="0.00" />
           </div>
+          )}
           <div className="flex items-end gap-0.5 pb-0.5">
             <Button type="button" variant="ghost" size="sm" onClick={() => setFormState({ ...formState, items: [...formState.items, emptyItem()] })} className="h-9 w-9 p-0">
               <Plus className="h-4 w-4" />
@@ -327,7 +334,8 @@ const Transactions = () => {
         </div>
       ))}
     </div>
-  );
+    );
+  };
 
   return (
     <Layout>
