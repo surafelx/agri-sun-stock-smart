@@ -366,9 +366,10 @@ const Transactions = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>{formData.type === 'purchase' ? 'Supplier' : formData.type === 'transfer' ? 'From' : 'Customer'} Name {formData.type !== 'transfer' && '*'}</Label>
-                    <input list="supplier-list" value={formData.customerSupplier} onChange={(e) => setFormData({ ...formData, customerSupplier: e.target.value })} onSelect={(e) => {
-                      const selected = uniqueSuppliers.find((s) => s.name === e.currentTarget.value);
-                      if (selected) setFormData({ ...formData, customerSupplier: selected.name, contact: selected.contact, tinNo: selected.tinNo });
+                    <input list="supplier-list" value={formData.customerSupplier} onChange={(e) => {
+                      const val = e.target.value;
+                      const selected = uniqueSuppliers.find((s) => s.name === val);
+                      setFormData({ ...formData, customerSupplier: val, contact: selected?.contact || formData.contact, tinNo: selected?.tinNo || formData.tinNo });
                     }} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" required={formData.type !== 'transfer'} />
                     <datalist id="supplier-list">
                       {uniqueSuppliers.map((s) => <option key={s.name} value={s.name} />)}
