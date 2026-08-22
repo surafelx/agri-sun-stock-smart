@@ -26,6 +26,7 @@ const Items = () => {
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedSubcategory, setSelectedSubcategory] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [colSearch, setColSearch] = useState({ sku: "", name: "", category: "", subcategory: "", uom: "" });
   const [viewMode, setViewMode] = useState<"items" | "stock">("items");
@@ -48,13 +49,14 @@ const Items = () => {
   useEffect(() => {
     if (viewMode === "stock") fetchBalance();
     else fetchItems();
-  }, [viewMode, selectedCategory, debouncedSearch]);
+  }, [viewMode, selectedCategory, selectedSubcategory, debouncedSearch]);
 
   const fetchItems = async () => {
     setLoading(true);
     try {
       const params: Record<string, string> = { limit: "1000" };
       if (selectedCategory && selectedCategory !== "all") params.category = selectedCategory;
+      if (selectedSubcategory && selectedSubcategory !== "all") params.subcategory = selectedSubcategory;
       if (debouncedSearch) params.search = debouncedSearch;
       const res = await itemsApi.list(params);
       setItemsList((res.items || []).map(normalizeItem));
@@ -70,6 +72,7 @@ const Items = () => {
     try {
       const params: Record<string, string> = { limit: "1000" };
       if (selectedCategory && selectedCategory !== "all") params.category = selectedCategory;
+      if (selectedSubcategory && selectedSubcategory !== "all") params.subcategory = selectedSubcategory;
       if (debouncedSearch) params.search = debouncedSearch;
       const res = await stockBalance.list(params);
       setBalanceList(res.balances || []);
@@ -262,13 +265,24 @@ const Items = () => {
               </div>
               <div className="flex gap-2">
                 <Filter className="h-4 w-4 text-muted-foreground mt-3" />
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <Select value={selectedCategory} onValueChange={(v) => { setSelectedCategory(v); setSelectedSubcategory("all"); }}>
                   <SelectTrigger className="w-[200px]"><SelectValue placeholder="All Categories" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
                     {categoriesList.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
+                {selectedCategory !== "all" && (
+                  <Select value={selectedSubcategory} onValueChange={setSelectedSubcategory}>
+                    <SelectTrigger className="w-[200px]"><SelectValue placeholder="All Subcategories" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Subcategories</SelectItem>
+                      {subcategoriesList.filter((s) => s.category_id === selectedCategory).map((s) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[160px]"><SelectValue placeholder="All Status" /></SelectTrigger>
                   <SelectContent>
@@ -278,8 +292,8 @@ const Items = () => {
                     <SelectItem value="out_of_stock">Out of Stock</SelectItem>
                   </SelectContent>
                 </Select>
-                {(searchTerm || selectedCategory !== "all" || statusFilter !== "all" || Object.values(colSearch).some(Boolean)) && (
-                  <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setSelectedCategory("all"); setStatusFilter("all"); setColSearch({ sku: "", name: "", category: "", subcategory: "", uom: "" }); }}>Clear</Button>
+                {(searchTerm || selectedCategory !== "all" || selectedSubcategory !== "all" || statusFilter !== "all" || Object.values(colSearch).some(Boolean)) && (
+                  <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setSelectedCategory("all"); setSelectedSubcategory("all"); setStatusFilter("all"); setColSearch({ sku: "", name: "", category: "", subcategory: "", uom: "" }); }}>Clear</Button>
                 )}
               </div>
             </div>
