@@ -97,7 +97,9 @@ const Items = () => {
         );
       }
       setSubcategoriesList(allSubs);
-    } catch {}
+    } catch (err: any) {
+      console.error('Failed to fetch categories:', err);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

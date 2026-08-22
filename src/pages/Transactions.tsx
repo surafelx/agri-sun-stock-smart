@@ -92,7 +92,9 @@ const Transactions = () => {
         );
       }
       setSubcategoriesList(allSubs);
-    } catch {}
+    } catch (err: any) {
+      console.error('Failed to fetch categories:', err);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -299,7 +301,7 @@ const Transactions = () => {
               }}>
                 <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
                 <SelectContent>
-                  {itemsList.map((i) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.sku})</SelectItem>)}
+                  {filteredItemsForRow(item.categoryId, item.subcategoryId).map((i) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.sku})</SelectItem>)}
                 </SelectContent>
               </Select>
             ) : (

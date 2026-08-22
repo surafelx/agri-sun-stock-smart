@@ -52,7 +52,7 @@ export function normalizeTransaction(txn: any): any {
       unit_price: li.unitPrice ?? li.unit_price ?? 0,
       total_price: li.totalPrice ?? li.total_price ?? 0,
       profit: li.profit ?? 0,
-      items: li.item ? { name: li.item.name, sku: li.item.sku, id: li.item._id || li.item.id } : null,
+      items: li.item ? { name: li.item.name, sku: li.item.sku, id: li.item._id || li.item.id, category_id: li.item.category?._id || li.item.category || null, subcategory_id: li.item.subcategory?._id || li.item.subcategory || null } : null,
     })),
   };
 }
