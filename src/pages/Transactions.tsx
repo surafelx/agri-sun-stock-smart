@@ -667,10 +667,10 @@ const Transactions = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {itemPickerStockCard.filter((mv) => mv.quantityIn > 0).map((mv, idx) => (
+                      {itemPickerStockCard.filter((mv) => mv.quantityIn > 0 && (mv.remaining ?? mv.quantityIn) > 0).map((mv, idx) => (
                         <TableRow key={mv.id || idx} className="cursor-pointer hover:bg-muted/50" onClick={() => {
                           const newItems = [...itemPickerForm.items];
-                          newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(mv.quantity ?? mv.quantityIn), unitPrice: String(mv.unitPrice), purchaseRef: mv.reference || "" };
+                          newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(mv.remaining ?? mv.quantity ?? mv.quantityIn), unitPrice: String(mv.unitPrice), purchaseRef: mv.reference || "" };
                           setFormData({ ...itemPickerForm, items: newItems });
                           setItemPickerOpen(false);
                           setItemPickerSelected(null);
@@ -681,7 +681,7 @@ const Transactions = () => {
                           <TableCell className="text-xs py-2">{mv.customerSupplier || '-'}</TableCell>
                           <TableCell className="text-right text-xs py-2 font-medium">{mv.quantity ?? mv.quantityIn}</TableCell>
                           <TableCell className="text-right text-xs py-2">ETB {mv.unitPrice?.toFixed(2)}</TableCell>
-                          <TableCell className="text-right text-xs py-2">{mv.balance}</TableCell>
+                          <TableCell className="text-right text-xs py-2">{mv.remaining ?? mv.balance}</TableCell>
                           <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
                         </TableRow>
                       ))}
