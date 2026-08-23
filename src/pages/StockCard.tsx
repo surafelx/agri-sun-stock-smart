@@ -123,6 +123,7 @@ const StockCard = () => {
                       <TableHead className="h-9 text-xs text-right">Debit (In)</TableHead>
                       <TableHead className="h-9 text-xs text-right">Credit (Out)</TableHead>
                       <TableHead className="h-9 text-xs text-right">Balance</TableHead>
+                      <TableHead className="h-9 text-xs text-right">Remaining</TableHead>
                       <TableHead className="h-9 text-xs text-right">Value</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -144,6 +145,9 @@ const StockCard = () => {
                           {mv.quantityOut > 0 ? `${mv.quantityOut} @ ETB ${mv.unitPrice}` : '-'}
                         </TableCell>
                         <TableCell className="py-2 text-right font-bold text-sm">{mv.balance}</TableCell>
+                        <TableCell className="py-2 text-right text-xs">
+                          {mv.remaining != null ? mv.remaining : mv.quantityIn > 0 ? mv.quantityIn : '-'}
+                        </TableCell>
                         <TableCell className="py-2 text-right text-xs">
                           ETB {(mv.valueIn - mv.valueOut).toFixed(2)}
                         </TableCell>
