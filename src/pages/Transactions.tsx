@@ -268,20 +268,18 @@ const Transactions = () => {
   ].map(([name, data]: [string, any]) => [name, { name, contact: data.contact || "", tinNo: data.tinNo || "" }])).values());
 
   const renderItemRows = (formState: typeof formData, setFormState: (f: any) => void) => {
-    const showUnitPrice = formState.type !== 'purchase';
-    const gridClass = showUnitPrice ? "grid grid-cols-6 gap-2" : "grid grid-cols-5 gap-2";
     return (
     <div className="space-y-2">
-      <div className={`${gridClass} text-xs font-medium text-muted-foreground`}>
+      <div className="grid grid-cols-6 gap-2 text-xs font-medium text-muted-foreground">
         <div>Category</div>
         <div>Subcategory</div>
         <div>Item</div>
         <div>Qty</div>
-        {showUnitPrice && <div>Unit Price</div>}
+        <div>Unit Price</div>
         <div></div>
       </div>
       {formState.items.map((item, index) => (
-        <div key={index} className={`${gridClass} items-end`}>
+        <div key={index} className="grid grid-cols-6 gap-2 items-end">
           <div>
             <Select value={item.categoryId} onValueChange={(v) => setFormState({ ...formState, items: updateFormItem(formState, index, 'categoryId', v) })}>
               <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
@@ -314,11 +312,9 @@ const Transactions = () => {
           <div>
             <Input type="number" step="0.01" value={item.quantity} onChange={(e) => setFormState({ ...formState, items: updateFormItem(formState, index, 'quantity', e.target.value) })} placeholder="0" />
           </div>
-          {showUnitPrice && (
           <div>
             <Input type="number" step="0.01" value={item.unitPrice} onChange={(e) => setFormState({ ...formState, items: updateFormItem(formState, index, 'unitPrice', e.target.value) })} placeholder="0.00" />
           </div>
-          )}
           <div className="flex items-end gap-0.5 pb-0.5">
             <Button type="button" variant="ghost" size="sm" onClick={() => setFormState({ ...formState, items: [...formState.items, emptyItem()] })} className="h-9 w-9 p-0">
               <Plus className="h-4 w-4" />
