@@ -262,12 +262,12 @@ const Transactions = () => {
   const filteredTxList = txList;
 
   const uniqueSuppliers = Array.from(new Map([
-    ...suppliersList.map((s) => [s.name, s]),
     ...txList.filter((tx) => tx.customer_supplier_name).map((tx) => [tx.customer_supplier_name, {
       name: tx.customer_supplier_name,
       contact: tx.customer_supplier_contact || "",
       tinNo: tx.tin_no || tx.tinNo || "",
     }]),
+    ...suppliersList.map((s) => [s.name, s]),
   ].map(([name, data]: [string, any]) => [name, { name, contact: data.contact || "", tinNo: data.tinNo || "" }])).values());
 
   const renderItemRows = (formState: typeof formData, setFormState: (f: any) => void) => {
