@@ -110,7 +110,7 @@ const Transactions = () => {
   };
 
   const handleCreateAndSelectSupplier = async () => {
-    if (!newSupplierName.trim()) { toast({ variant: "destructive", title: "Error", description: "Supplier name is required" }); return; }
+    if (!newSupplierName.trim()) { toast({ variant: "destructive", title: "Error", description: formData.type === 'transfer' ? "Client name is required" : "Supplier name is required" }); return; }
     try {
       const res = await suppliersApi.create({ name: newSupplierName.trim(), tin_no: newSupplierTin.trim(), contact: newSupplierContact.trim() });
       const created = res.supplier;
@@ -118,7 +118,7 @@ const Transactions = () => {
       setNewSupplierName(""); setNewSupplierTin(""); setNewSupplierContact("");
       setSupplierModalOpen(false);
       fetchAll();
-      toast({ title: "Success", description: "Supplier created and selected" });
+      toast({ title: "Success", description: formData.type === 'transfer' ? "Client created and selected" : "Supplier created and selected" });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error", description: err.message });
     }
@@ -127,7 +127,7 @@ const Transactions = () => {
   const handleUpdateSupplier = async () => {
     if (!editingSupplier) return;
     const supplierId = editingSupplier.id || editingSupplier._id;
-    if (!supplierId) { toast({ variant: "destructive", title: "Error", description: "Supplier ID not found" }); return; }
+    if (!supplierId) { toast({ variant: "destructive", title: "Error", description: formData.type === 'transfer' ? "Client ID not found" : "Supplier ID not found" }); return; }
     try {
       await suppliersApi.update(supplierId, {
         name: editSupplierName.trim(),
@@ -137,7 +137,7 @@ const Transactions = () => {
       setFormData({ ...formData, customerSupplier: editSupplierName.trim(), tinNo: editSupplierTin.trim(), contact: editSupplierContact.trim() });
       setEditingSupplier(null);
       fetchAll();
-      toast({ title: "Success", description: "Supplier updated" });
+      toast({ title: "Success", description: formData.type === 'transfer' ? "Client updated" : "Supplier updated" });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error", description: err.message });
     }
@@ -418,7 +418,7 @@ const Transactions = () => {
                           {formData.tinNo && <span className="text-muted-foreground ml-2 text-xs">TIN: {formData.tinNo}</span>}
                           {formData.contact && <span className="text-muted-foreground ml-2 text-xs">• {formData.contact}</span>}
                         </span>
-                      ) : "Select or create supplier..."}
+                      ) : formData.type === 'transfer' ? "Select or create client..." : "Select or create supplier..."}
                     </Button>
                   </div>
                   <div className="space-y-2"><Label>Notes</Label><Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} /></div>
