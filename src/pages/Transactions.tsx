@@ -269,10 +269,10 @@ const Transactions = () => {
 
   const renderItemRows = (formState: typeof formData, setFormState: (f: any) => void) => {
     const showUnitPrice = formState.type !== 'purchase';
-    const colCount = showUnitPrice ? 6 : 5;
+    const gridClass = showUnitPrice ? "grid grid-cols-6 gap-2" : "grid grid-cols-5 gap-2";
     return (
     <div className="space-y-2">
-      <div className={`grid grid-cols-${colCount} gap-2 text-xs font-medium text-muted-foreground`}>
+      <div className={`${gridClass} text-xs font-medium text-muted-foreground`}>
         <div>Category</div>
         <div>Subcategory</div>
         <div>Item</div>
@@ -281,7 +281,7 @@ const Transactions = () => {
         <div></div>
       </div>
       {formState.items.map((item, index) => (
-        <div key={index} className={`grid grid-cols-${colCount} gap-2 items-end`}>
+        <div key={index} className={`${gridClass} items-end`}>
           <div>
             <Select value={item.categoryId} onValueChange={(v) => setFormState({ ...formState, items: updateFormItem(formState, index, 'categoryId', v) })}>
               <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
@@ -297,11 +297,7 @@ const Transactions = () => {
           <div>
             {formState.type === 'purchase' ? (
               <Select value={item.itemId || ""} onValueChange={(v) => {
-                const selected = itemsList.find((i) => i.id === v);
                 const updates = updateFormItem(formState, index, 'itemId', v);
-                if (selected) {
-                  updates[index] = { ...updates[index], unitPrice: String(selected.cost_price || selected.unit_price || 0) };
-                }
                 setFormState({ ...formState, items: updates });
               }}>
                 <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
