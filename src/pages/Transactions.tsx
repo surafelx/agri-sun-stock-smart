@@ -49,6 +49,10 @@ const Transactions = () => {
   const [itemPickerSelected, setItemPickerSelected] = useState<any | null>(null);
   const [itemPickerStockCard, setItemPickerStockCard] = useState<any[]>([]);
   const [itemPickerStockLoading, setItemPickerStockLoading] = useState(false);
+  const [supplierModalOpen, setSupplierModalOpen] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState("");
+  const [newSupplierTin, setNewSupplierTin] = useState("");
+  const [newSupplierContact, setNewSupplierContact] = useState("");
 
   const defaultForm = { type: "purchase" as TxType, reference: "", customerSupplier: "", contact: "", notes: "", date: new Date().toISOString().split('T')[0], tinNo: "", items: [emptyItem()] };
   const [formData, setFormData] = useState(defaultForm);
@@ -97,6 +101,21 @@ const Transactions = () => {
       setSubcategoriesList(allSubs);
     } catch (err: any) {
       console.error('Failed to fetch categories:', err);
+    }
+  };
+
+  const handleCreateAndSelectSupplier = async () => {
+    if (!newSupplierName.trim()) { toast({ variant: "destructive", title: "Error", description: "Supplier name is required" }); return; }
+    try {
+      const res = await suppliersApi.create({ name: newSupplierName.trim(), tin_no: newSupplierTin.trim(), contact: newSupplierContact.trim() });
+      const created = res.supplier;
+      setFormData({ ...formData, customerSupplier: created.name, tinNo: created.tinNo || created.tin_no || "", contact: created.contact || "" });
+      setNewSupplierName(""); setNewSupplierTin(""); setNewSupplierContact("");
+      setSupplierModalOpen(false);
+      fetchAll();
+      toast({ title: "Success", description: "Supplier created and selected" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
     }
   };
 
@@ -362,38 +381,17 @@ const Transactions = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>{formData.type === 'purchase' ? 'Supplier' : formData.type === 'transfer' ? 'From' : 'Customer'} Name {formData.type !== 'transfer' && '*'}</Label>
-                    <Select
-                      value={uniqueSuppliers.some((s) => s.name === formData.customerSupplier) ? formData.customerSupplier : "__custom__"}
-                      onValueChange={(v) => {
-                        if (v === "__custom__") return;
-                        const s = uniqueSuppliers.find((u) => u.name === v);
-                        if (s) setFormData({ ...formData, customerSupplier: s.name, contact: s.contact || "", tinNo: s.tinNo || "" });
-                      }}
-                    >
-                      <SelectTrigger><SelectValue placeholder="Select or type below">
-                        {formData.customerSupplier && uniqueSuppliers.some((s) => s.name === formData.customerSupplier) ? formData.customerSupplier : null}
-                      </SelectValue></SelectTrigger>
-                      <SelectContent>
-                        {uniqueSuppliers.map((s) => (
-                          <SelectItem key={s.name} value={s.name}>
-                            {s.name}{s.tinNo ? ` (${s.tinNo})` : ""}{s.contact ? ` - ${s.contact}` : ""}
-                          </SelectItem>
-                        ))}
-                        <SelectItem value="__custom__">Type custom name...</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      value={formData.customerSupplier}
-                      onChange={(e) => setFormData({ ...formData, customerSupplier: e.target.value })}
-                      placeholder="Supplier name"
-                      required={formData.type !== 'transfer'}
-                    />
+                    <Label>{formData.type === 'purchase' ? 'Supplier' : formData.type === 'transfer' ? 'From' : 'Customer'} {formData.type !== 'transfer' && '*'}</Label>
+                    <Button type="button" variant="outline" className="w-full justify-start text-left h-9 font-normal" onClick={() => setSupplierModalOpen(true)}>
+                      {formData.customerSupplier ? (
+                        <span>
+                          {formData.customerSupplier}
+                          {formData.tinNo && <span className="text-muted-foreground ml-2 text-xs">TIN: {formData.tinNo}</span>}
+                          {formData.contact && <span className="text-muted-foreground ml-2 text-xs">• {formData.contact}</span>}
+                        </span>
+                      ) : "Select or create supplier..."}
+                    </Button>
                   </div>
-                  <div className="space-y-2"><Label>TIN No</Label><Input value={formData.tinNo} onChange={(e) => setFormData({ ...formData, tinNo: e.target.value })} placeholder="Tax ID" /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label>Contact</Label><Input value={formData.contact} onChange={(e) => setFormData({ ...formData, contact: e.target.value })} placeholder="Phone or email" /></div>
                   <div className="space-y-2"><Label>Notes</Label><Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} /></div>
                 </div>
                 <div className="border-t pt-4">
@@ -808,6 +806,62 @@ const Transactions = () => {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={supplierModalOpen} onOpenChange={setSupplierModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-lg">Select Supplier</DialogTitle>
+            <DialogDescription>Choose an existing supplier or create a new one</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search suppliers..." id="supplier-modal-search" className="pl-9" onChange={(e) => {
+                const val = e.target.value.toLowerCase();
+                document.querySelectorAll('[data-supplier-row]').forEach((row) => {
+                  const name = (row as HTMLElement).dataset.supplierName || "";
+                  (row as HTMLElement).style.display = name.toLowerCase().includes(val) ? "" : "none";
+                });
+              }} />
+            </div>
+            <div className="border rounded-lg max-h-[30vh] overflow-y-auto">
+              {uniqueSuppliers.length === 0 ? (
+                <p className="text-center py-6 text-sm text-muted-foreground">No suppliers found. Create one below.</p>
+              ) : uniqueSuppliers.map((s) => (
+                <div
+                  key={s.name}
+                  data-supplier-row
+                  data-supplier-name={s.name}
+                  className="flex items-center justify-between px-3 py-2 hover:bg-muted cursor-pointer border-b last:border-b-0"
+                  onClick={() => {
+                    setFormData({ ...formData, customerSupplier: s.name, tinNo: s.tinNo || "", contact: s.contact || "" });
+                    setSupplierModalOpen(false);
+                  }}
+                >
+                  <div>
+                    <div className="font-medium text-sm">{s.name}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {s.tinNo ? `TIN: ${s.tinNo}` : ""}{s.tinNo && s.contact ? " • " : ""}{s.contact || ""}
+                    </div>
+                  </div>
+                  {formData.customerSupplier === s.name && <Badge variant="default" className="text-xs">Selected</Badge>}
+                </div>
+              ))}
+            </div>
+            <div className="border-t pt-4">
+              <h4 className="font-semibold text-sm mb-2">Create New Supplier</h4>
+              <div className="grid grid-cols-3 gap-2">
+                <Input placeholder="Supplier name *" value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} />
+                <Input placeholder="TIN No" value={newSupplierTin} onChange={(e) => setNewSupplierTin(e.target.value)} />
+                <Input placeholder="Contact" value={newSupplierContact} onChange={(e) => setNewSupplierContact(e.target.value)} />
+              </div>
+              <div className="flex justify-end mt-2">
+                <Button type="button" size="sm" onClick={handleCreateAndSelectSupplier} disabled={!newSupplierName.trim()}>Create & Select</Button>
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </Layout>
