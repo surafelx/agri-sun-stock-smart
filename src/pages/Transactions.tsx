@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit, ArrowRightLeft, Search, ArrowLeft } from "lucide-react";
+import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit, ArrowRightLeft, Search, ArrowLeft, Pencil } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
@@ -53,6 +53,10 @@ const Transactions = () => {
   const [newSupplierName, setNewSupplierName] = useState("");
   const [newSupplierTin, setNewSupplierTin] = useState("");
   const [newSupplierContact, setNewSupplierContact] = useState("");
+  const [editingSupplier, setEditingSupplier] = useState<any | null>(null);
+  const [editSupplierName, setEditSupplierName] = useState("");
+  const [editSupplierTin, setEditSupplierTin] = useState("");
+  const [editSupplierContact, setEditSupplierContact] = useState("");
 
   const defaultForm = { type: "purchase" as TxType, reference: "", customerSupplier: "", contact: "", notes: "", date: new Date().toISOString().split('T')[0], tinNo: "", items: [emptyItem()] };
   const [formData, setFormData] = useState(defaultForm);
@@ -114,6 +118,23 @@ const Transactions = () => {
       setSupplierModalOpen(false);
       fetchAll();
       toast({ title: "Success", description: "Supplier created and selected" });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    }
+  };
+
+  const handleUpdateSupplier = async () => {
+    if (!editingSupplier) return;
+    try {
+      await suppliersApi.update(editingSupplier.id || editingSupplier._id, {
+        name: editSupplierName.trim(),
+        tin_no: editSupplierTin.trim(),
+        contact: editSupplierContact.trim(),
+      });
+      setFormData({ ...formData, customerSupplier: editSupplierName.trim(), tinNo: editSupplierTin.trim(), contact: editSupplierContact.trim() });
+      setEditingSupplier(null);
+      fetchAll();
+      toast({ title: "Success", description: "Supplier updated" });
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error", description: err.message });
     }
@@ -834,19 +855,46 @@ const Transactions = () => {
                   key={s.name}
                   data-supplier-row
                   data-supplier-name={s.name}
-                  className="flex items-center justify-between px-3 py-2 hover:bg-muted cursor-pointer border-b last:border-b-0"
-                  onClick={() => {
-                    setFormData({ ...formData, customerSupplier: s.name, tinNo: s.tinNo || "", contact: s.contact || "" });
-                    setSupplierModalOpen(false);
-                  }}
+                  className="px-3 py-2 border-b last:border-b-0"
                 >
-                  <div>
-                    <div className="font-medium text-sm">{s.name}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {s.tinNo ? `TIN: ${s.tinNo}` : ""}{s.tinNo && s.contact ? " • " : ""}{s.contact || ""}
+                  {editingSupplier?.name === s.name ? (
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-3 gap-2">
+                        <Input value={editSupplierName} onChange={(e) => setEditSupplierName(e.target.value)} placeholder="Name" className="h-8 text-sm" />
+                        <Input value={editSupplierTin} onChange={(e) => setEditSupplierTin(e.target.value)} placeholder="TIN" className="h-8 text-sm" />
+                        <Input value={editSupplierContact} onChange={(e) => setEditSupplierContact(e.target.value)} placeholder="Contact" className="h-8 text-sm" />
+                      </div>
+                      <div className="flex justify-end gap-1">
+                        <Button type="button" variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingSupplier(null)}>Cancel</Button>
+                        <Button type="button" size="sm" className="h-7 text-xs" onClick={handleUpdateSupplier}>Save</Button>
+                      </div>
                     </div>
-                  </div>
-                  {formData.customerSupplier === s.name && <Badge variant="default" className="text-xs">Selected</Badge>}
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div
+                        className="flex-1 cursor-pointer hover:text-primary"
+                        onClick={() => {
+                          setFormData({ ...formData, customerSupplier: s.name, tinNo: s.tinNo || "", contact: s.contact || "" });
+                          setSupplierModalOpen(false);
+                        }}
+                      >
+                        <div className="font-medium text-sm">{s.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {s.tinNo ? `TIN: ${s.tinNo}` : ""}{s.tinNo && s.contact ? " • " : ""}{s.contact || ""}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        {formData.customerSupplier === s.name && <Badge variant="default" className="text-xs mr-1">Selected</Badge>}
+                        <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingSupplier(s);
+                          setEditSupplierName(s.name);
+                          setEditSupplierTin(s.tinNo || "");
+                          setEditSupplierContact(s.contact || "");
+                        }}><Pencil className="h-3.5 w-3.5" /></Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
