@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Search, ArrowRightLeft, TrendingUp, DollarSign, Package, FileText, Pencil, Trash2, Plus, ArrowLeft } from "lucide-react";
@@ -29,7 +29,7 @@ const CostSheet = () => {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [editingTx, setEditingTx] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+
   const [editForm, setEditForm] = useState({ type: "transfer", reference: "", date: "", customerSupplier: "", contact: "", tinNo: "", notes: "", items: [emptyItem()] });
   const [itemsList, setItemsList] = useState<any[]>([]);
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
@@ -163,18 +163,6 @@ const CostSheet = () => {
       toast({ variant: "destructive", title: "Error updating transaction", description: err.message });
     } finally {
       setSubmitting(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    try {
-      await txApi.delete(deleteId);
-      toast({ title: "Success", description: "Transaction deleted and stock reversed" });
-      setDeleteId(null);
-      fetchTransactions();
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Error", description: err.message });
     }
   };
 
@@ -348,9 +336,6 @@ const CostSheet = () => {
                               </Button>
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="PDF" onClick={() => generatePDF(tx)}>
                                 <FileText className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" title="Delete" onClick={() => setDeleteId(tx.id)}>
-                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           </TableCell>
@@ -549,18 +534,6 @@ const CostSheet = () => {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
-            <AlertDialogDescription>This will reverse the stock changes and cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Layout>
   );
 };
