@@ -361,14 +361,32 @@ const Transactions = () => {
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
                     <Label>{formData.type === 'purchase' ? 'Supplier' : formData.type === 'transfer' ? 'From' : 'Customer'} Name {formData.type !== 'transfer' && '*'}</Label>
-                    <input list="supplier-list" value={formData.customerSupplier} onChange={(e) => {
-                      const val = e.target.value;
-                      const selected = uniqueSuppliers.find((s) => s.name === val);
-                      setFormData({ ...formData, customerSupplier: val, contact: selected?.contact || formData.contact, tinNo: selected?.tinNo || formData.tinNo });
-                    }} className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" required={formData.type !== 'transfer'} />
-                    <datalist id="supplier-list">
-                      {uniqueSuppliers.map((s) => <option key={s.name} value={s.name} />)}
-                    </datalist>
+                    <Select
+                      value={uniqueSuppliers.some((s) => s.name === formData.customerSupplier) ? formData.customerSupplier : "__custom__"}
+                      onValueChange={(v) => {
+                        if (v === "__custom__") return;
+                        const s = uniqueSuppliers.find((u) => u.name === v);
+                        if (s) setFormData({ ...formData, customerSupplier: s.name, contact: s.contact || "", tinNo: s.tinNo || "" });
+                      }}
+                    >
+                      <SelectTrigger><SelectValue placeholder="Select or type below" /></SelectTrigger>
+                      <SelectContent>
+                        {uniqueSuppliers.map((s) => (
+                          <SelectItem key={s.name} value={s.name}>
+                            {s.name}{s.tinNo ? ` (${s.tinNo})` : ""}{s.contact ? ` - ${s.contact}` : ""}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="__custom__">Type custom name...</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {uniqueSuppliers.some((s) => s.name === formData.customerSupplier) ? null : (
+                      <Input
+                        value={formData.customerSupplier}
+                        onChange={(e) => setFormData({ ...formData, customerSupplier: e.target.value })}
+                        placeholder="Enter supplier name"
+                        required={formData.type !== 'transfer'}
+                      />
+                    )}
                   </div>
                   <div className="space-y-2"><Label>TIN No</Label><Input value={formData.tinNo} onChange={(e) => setFormData({ ...formData, tinNo: e.target.value })} placeholder="Tax ID" /></div>
                 </div>
