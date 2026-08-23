@@ -152,8 +152,9 @@ const Transactions = () => {
       if (lineItems.length === 0) { toast({ variant: "destructive", title: "Error", description: "Add at least one item" }); return; }
 
       const ref = formData.reference || `TRF-${Date.now()}`;
-      const finalRef = formData.type === 'transfer' && formData.items.some(i => i.purchaseRef) 
-        ? `${ref}/${formData.items.find(i => i.purchaseRef)?.purchaseRef || ''}`
+      const purchaseRefs = formData.items.filter(i => i.purchaseRef).map(i => i.purchaseRef);
+      const finalRef = formData.type === 'transfer' && purchaseRefs.length > 0 
+        ? `${ref}/${purchaseRefs.join(',')}`
         : ref;
       await txApi.create({
         transactionType: formData.type,
