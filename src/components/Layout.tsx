@@ -2,7 +2,7 @@ import { ReactNode, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, Sun, LayoutDashboard, Package, ArrowLeftRight, Settings, BarChart3, Upload } from "lucide-react";
+import { LogOut, Sun, LayoutDashboard, Package, ArrowLeftRight, Settings, BarChart3, Upload, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface LayoutProps {
@@ -62,6 +62,7 @@ const Layout = ({ children }: LayoutProps) => {
               { path: "/items", label: "Stock Items", Icon: Package },
               { path: "/stock-balance", label: "Stock Balance", Icon: BarChart3 },
               { path: "/transactions", label: "Transactions", Icon: ArrowLeftRight },
+              { path: "/cost-sheet", label: "Cost Sheet", Icon: FileText },
               { path: "/import", label: "Import", Icon: Upload },
               { path: "/admin", label: "Admin", Icon: Settings },
             ].map(({ path, label, Icon }) => (

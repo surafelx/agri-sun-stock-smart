@@ -14,6 +14,7 @@ import Transactions from "./pages/Transactions";
 import TransactionDetail from "./pages/TransactionDetail";
 import Admin from "./pages/Admin";
 import ImportPage from "./pages/ImportPage";
+import CostSheet from "./pages/CostSheet";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/transactions/:transactionId" element={<TransactionDetail />} />
           <Route path="/import" element={<ImportPage />} />
+          <Route path="/cost-sheet" element={<CostSheet />} />
           <Route path="/admin" element={<Admin />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
