@@ -246,7 +246,7 @@ const Transactions = () => {
       doc.text(`Type: ${tx.transaction_type?.toUpperCase()}`, 20, 40);
       doc.text(`Reference: ${tx.reference_number}`, 20, 50);
       doc.text(`Date: ${new Date(tx.transaction_date).toLocaleDateString()}`, 20, 60);
-      doc.text(`${tx.transaction_type === 'purchase' ? 'Supplier' : tx.transaction_type === 'transfer' ? 'From' : 'Customer'}: ${tx.customer_supplier_name}`, 20, 70);
+      doc.text(`${tx.transaction_type === 'purchase' ? 'Supplier' : tx.transaction_type === 'transfer' ? 'Client/Customer' : 'Customer'}: ${tx.customer_supplier_name}`, 20, 70);
       if (tx.customer_supplier_contact) doc.text(`Contact: ${tx.customer_supplier_contact}`, 20, 80);
       let y = 100;
       doc.setFontSize(10);
@@ -405,7 +405,7 @@ const Transactions = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>{formData.type === 'purchase' ? 'Supplier' : formData.type === 'transfer' ? 'From' : 'Customer'} {formData.type !== 'transfer' && '*'}</Label>
+                    <Label>{formData.type === 'purchase' ? 'Supplier' : formData.type === 'transfer' ? 'Client/Customer' : 'Customer'} {formData.type !== 'transfer' && '*'}</Label>
                     <Button type="button" variant="outline" className="w-full justify-start text-left h-9 font-normal" onClick={() => setSupplierModalOpen(true)}>
                       {formData.customerSupplier ? (
                         <span>
@@ -770,7 +770,7 @@ const Transactions = () => {
                 <div className="space-y-2">
                   <div><span className="font-medium text-muted-foreground">Reference:</span> <span className="ml-2">{viewTx.reference_number}</span></div>
                   <div><span className="font-medium text-muted-foreground">Date:</span> <span className="ml-2">{new Date(viewTx.transaction_date).toLocaleDateString()}</span></div>
-                  <div><span className="font-medium text-muted-foreground">{viewTx.transaction_type === 'purchase' ? 'Supplier' : viewTx.transaction_type === 'transfer' ? 'From' : 'Customer'}:</span> <span className="ml-2">{viewTx.customer_supplier_name}</span></div>
+                  <div><span className="font-medium text-muted-foreground">{viewTx.transaction_type === 'purchase' ? 'Supplier' : viewTx.transaction_type === 'transfer' ? 'Client/Customer' : 'Customer'}:</span> <span className="ml-2">{viewTx.customer_supplier_name}</span></div>
                   {viewTx.customer_supplier_contact && <div><span className="font-medium text-muted-foreground">Contact:</span> <span className="ml-2">{viewTx.customer_supplier_contact}</span></div>}
                   {viewTx.tin_no && <div><span className="font-medium text-muted-foreground">TIN Number:</span> <span className="ml-2 font-mono">{viewTx.tin_no}</span></div>}
                   {viewTx.notes && <div><span className="font-medium text-muted-foreground">Notes:</span> <span className="ml-2">{viewTx.notes}</span></div>}
@@ -836,8 +836,8 @@ const Transactions = () => {
       <Dialog open={supplierModalOpen} onOpenChange={setSupplierModalOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg">Select Supplier</DialogTitle>
-            <DialogDescription>Choose an existing supplier or create a new one</DialogDescription>
+            <DialogTitle className="text-lg">{formData.type === 'purchase' ? 'Select Supplier' : 'Select Client/Customer'}</DialogTitle>
+            <DialogDescription>{formData.type === 'purchase' ? 'Choose an existing supplier or create a new one' : 'Choose an existing client or create a new one'}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="relative">
