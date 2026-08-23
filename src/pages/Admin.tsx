@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { users as usersApi, categories as categoriesApi, suppliers as suppliersApi, normalizeUser, normalizeCategory, normalizeSubcategory } from "@/lib/api";
+import { users as usersApi, categories as categoriesApi, suppliers as suppliersApi, transactions as txApi, normalizeUser, normalizeCategory, normalizeSubcategory } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -49,6 +49,7 @@ const Admin = () => {
   const [editSubcategoryCategoryId, setEditSubcategoryCategoryId] = useState("");
 
   const [suppliersList, setSuppliersList] = useState<any[]>([]);
+  const [txSuppliersList, setTxSuppliersList] = useState<any[]>([]);
   const [supplierSearch, setSupplierSearch] = useState("");
   const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
   const [editSupplierOpen, setEditSupplierOpen] = useState(false);
@@ -73,7 +74,7 @@ const Admin = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      await Promise.all([fetchUsers(), fetchCategories(), fetchSuppliers()]);
+      await Promise.all([fetchUsers(), fetchCategories(), fetchSuppliers(), fetchTxSuppliers()]);
     } finally {
       setLoading(false);
     }
@@ -109,6 +110,27 @@ const Admin = () => {
       setSuppliersList(res.suppliers || []);
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error fetching suppliers", description: err.message });
+    }
+  };
+
+  const fetchTxSuppliers = async () => {
+    try {
+      const res = await txApi.list({ limit: "1000" });
+      const txs = res.transactions || [];
+      const supplierMap = new Map<string, { name: string; contact: string; tinNo: string }>();
+      txs.forEach((tx: any) => {
+        const name = tx.customerSupplierName || tx.customer_supplier_name;
+        if (name && !supplierMap.has(name)) {
+          supplierMap.set(name, {
+            name,
+            contact: tx.customerSupplierContact || tx.customer_supplier_contact || "",
+            tinNo: tx.tinNo || tx.tin_no || "",
+          });
+        }
+      });
+      setTxSuppliersList(Array.from(supplierMap.values()));
+    } catch (err: any) {
+      console.error("Failed to fetch transaction suppliers:", err);
     }
   };
 
@@ -149,6 +171,23 @@ const Admin = () => {
       await suppliersApi.delete(id);
       toast({ title: "Deleted", description: "Supplier deleted" });
       fetchSuppliers();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    }
+  };
+
+  const handleImportTxSupplier = async (txSupplier: any) => {
+    try {
+      await suppliersApi.create({
+        name: txSupplier.name,
+        tin_no: txSupplier.tinNo || "",
+        contact: txSupplier.contact || "",
+        address: "",
+        notes: "Imported from transactions",
+      });
+      toast({ title: "Success", description: `Supplier "${txSupplier.name}" imported` });
+      fetchSuppliers();
+      fetchTxSuppliers();
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error", description: err.message });
     }
@@ -588,37 +627,72 @@ const Admin = () => {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input placeholder="Search suppliers by name, TIN, contact..." value={supplierSearch} onChange={(e) => { setSupplierSearch(e.target.value); }} className="pl-9" />
                 </div>
-                <div className="border rounded-lg">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="h-9 text-xs">Name</TableHead>
-                        <TableHead className="h-9 text-xs">TIN No</TableHead>
-                        <TableHead className="h-9 text-xs">Contact</TableHead>
-                        <TableHead className="h-9 text-xs">Address</TableHead>
-                        <TableHead className="h-9 text-xs text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {suppliersList.length === 0 ? (
-                        <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground text-sm">No suppliers found</TableCell></TableRow>
-                      ) : suppliersList.filter((s) => !supplierSearch || s.name?.toLowerCase().includes(supplierSearch.toLowerCase()) || s.tin_no?.toLowerCase().includes(supplierSearch.toLowerCase()) || s.contact?.toLowerCase().includes(supplierSearch.toLowerCase())).map((s) => (
-                        <TableRow key={s.id}>
-                          <TableCell className="text-sm py-2 font-medium">{s.name}</TableCell>
-                          <TableCell className="text-sm py-2 font-mono">{s.tin_no || '-'}</TableCell>
-                          <TableCell className="text-sm py-2">{s.contact || '-'}</TableCell>
-                          <TableCell className="text-sm py-2 text-muted-foreground">{s.address || '-'}</TableCell>
-                          <TableCell className="text-right py-2">
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleEditSupplier(s)}><Pencil className="h-3.5 w-3.5" /></Button>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleDeleteSupplier(s.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
+                {(() => {
+                  const registeredNames = new Set(suppliersList.map((s) => s.name?.toLowerCase()));
+                  const unregisteredTxSuppliers = txSuppliersList.filter((ts) => !registeredNames.has(ts.name?.toLowerCase()));
+                  const filteredRegistered = suppliersList.filter((s) => !supplierSearch || s.name?.toLowerCase().includes(supplierSearch.toLowerCase()) || s.tin_no?.toLowerCase().includes(supplierSearch.toLowerCase()) || s.contact?.toLowerCase().includes(supplierSearch.toLowerCase()));
+                  const filteredUnregistered = unregisteredTxSuppliers.filter((ts) => !supplierSearch || ts.name?.toLowerCase().includes(supplierSearch.toLowerCase()) || ts.tinNo?.toLowerCase().includes(supplierSearch.toLowerCase()) || ts.contact?.toLowerCase().includes(supplierSearch.toLowerCase()));
+                  return (
+                    <div className="border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="h-9 text-xs">Name</TableHead>
+                            <TableHead className="h-9 text-xs">TIN No</TableHead>
+                            <TableHead className="h-9 text-xs">Contact</TableHead>
+                            <TableHead className="h-9 text-xs">Address</TableHead>
+                            <TableHead className="h-9 text-xs text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredRegistered.length === 0 && filteredUnregistered.length === 0 ? (
+                            <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground text-sm">No suppliers found</TableCell></TableRow>
+                          ) : (
+                            <>
+                              {filteredRegistered.map((s) => (
+                                <TableRow key={s.id}>
+                                  <TableCell className="text-sm py-2 font-medium">{s.name}</TableCell>
+                                  <TableCell className="text-sm py-2 font-mono">{s.tin_no || '-'}</TableCell>
+                                  <TableCell className="text-sm py-2">{s.contact || '-'}</TableCell>
+                                  <TableCell className="text-sm py-2 text-muted-foreground">{s.address || '-'}</TableCell>
+                                  <TableCell className="text-right py-2">
+                                    <div className="flex justify-end gap-1">
+                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleEditSupplier(s)}><Pencil className="h-3.5 w-3.5" /></Button>
+                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleDeleteSupplier(s.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                              {filteredUnregistered.length > 0 && (
+                                <TableRow>
+                                  <TableCell colSpan={5} className="py-2 px-3 bg-muted/50">
+                                    <span className="text-xs font-medium text-muted-foreground">From Transactions ({filteredUnregistered.length})</span>
+                                  </TableCell>
+                                </TableRow>
+                              )}
+                              {filteredUnregistered.map((ts, idx) => (
+                                <TableRow key={`tx-${idx}`} className="bg-muted/30">
+                                  <TableCell className="text-sm py-2 font-medium">
+                                    {ts.name}
+                                    <Badge variant="outline" className="ml-2 text-[10px] h-4">Transaction</Badge>
+                                  </TableCell>
+                                  <TableCell className="text-sm py-2 font-mono">{ts.tinNo || '-'}</TableCell>
+                                  <TableCell className="text-sm py-2">{ts.contact || '-'}</TableCell>
+                                  <TableCell className="text-sm py-2 text-muted-foreground">-</TableCell>
+                                  <TableCell className="text-right py-2">
+                                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleImportTxSupplier(ts)}>
+                                      <Plus className="h-3 w-3 mr-1" />Import
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </>
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           </TabsContent>
