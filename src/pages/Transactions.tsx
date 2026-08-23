@@ -383,14 +383,12 @@ const Transactions = () => {
                         <SelectItem value="__custom__">Type custom name...</SelectItem>
                       </SelectContent>
                     </Select>
-                    {uniqueSuppliers.some((s) => s.name === formData.customerSupplier) ? null : (
-                      <Input
-                        value={formData.customerSupplier}
-                        onChange={(e) => setFormData({ ...formData, customerSupplier: e.target.value })}
-                        placeholder="Enter supplier name"
-                        required={formData.type !== 'transfer'}
-                      />
-                    )}
+                    <Input
+                      value={formData.customerSupplier}
+                      onChange={(e) => setFormData({ ...formData, customerSupplier: e.target.value })}
+                      placeholder="Supplier name"
+                      required={formData.type !== 'transfer'}
+                    />
                   </div>
                   <div className="space-y-2"><Label>TIN No</Label><Input value={formData.tinNo} onChange={(e) => setFormData({ ...formData, tinNo: e.target.value })} placeholder="Tax ID" /></div>
                 </div>
