@@ -262,8 +262,8 @@ export const suppliers = {
   create: (body: { name: string; tin_no?: string; contact?: string; address?: string; notes?: string }) =>
     request<{ supplier: any }>('/suppliers', { method: 'POST', body: JSON.stringify(body) }),
 
-  update: (id: string, body: Partial<{ name: string; tin_no: string; contact: string; address: string; notes: string; is_active: boolean }>) =>
-    request<{ supplier: any }>(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  update: (id: string, body: { name?: string; tin_no?: string; tinNo?: string; contact?: string; address?: string; notes?: string; is_active?: boolean }) =>
+    request<{ supplier: any }>(`/suppliers/${id}`, { method: 'PUT', body: JSON.stringify({ ...body, tinNo: body.tinNo || body.tin_no }) }),
 
   delete: (id: string) => request(`/suppliers/${id}`, { method: 'DELETE' }),
 };

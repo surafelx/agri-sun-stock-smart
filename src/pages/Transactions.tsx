@@ -125,12 +125,14 @@ const Transactions = () => {
 
   const handleUpdateSupplier = async () => {
     if (!editingSupplier) return;
+    const supplierId = editingSupplier.id || editingSupplier._id;
+    if (!supplierId) { toast({ variant: "destructive", title: "Error", description: "Supplier ID not found" }); return; }
     try {
-      await suppliersApi.update(editingSupplier.id || editingSupplier._id, {
+      await suppliersApi.update(supplierId, {
         name: editSupplierName.trim(),
         tin_no: editSupplierTin.trim(),
         contact: editSupplierContact.trim(),
-      });
+      } as any);
       setFormData({ ...formData, customerSupplier: editSupplierName.trim(), tinNo: editSupplierTin.trim(), contact: editSupplierContact.trim() });
       setEditingSupplier(null);
       fetchAll();
