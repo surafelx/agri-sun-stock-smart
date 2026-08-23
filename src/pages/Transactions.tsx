@@ -371,7 +371,9 @@ const Transactions = () => {
                         if (s) setFormData({ ...formData, customerSupplier: s.name, contact: s.contact || "", tinNo: s.tinNo || "" });
                       }}
                     >
-                      <SelectTrigger><SelectValue placeholder="Select or type below" /></SelectTrigger>
+                      <SelectTrigger><SelectValue placeholder="Select or type below">
+                        {formData.customerSupplier && uniqueSuppliers.some((s) => s.name === formData.customerSupplier) ? formData.customerSupplier : null}
+                      </SelectValue></SelectTrigger>
                       <SelectContent>
                         {uniqueSuppliers.map((s) => (
                           <SelectItem key={s.name} value={s.name}>
