@@ -48,8 +48,10 @@ const CostSheet = () => {
   };
 
   const grouped = transactions.reduce((acc, tx) => {
-    const ref = tx.reference_number || "No Reference";
-    if (!acc[ref]) acc[ref] = { ref, txs: [], client: tx.customer_supplier_name, date: tx.transaction_date, type: tx.transaction_type, totalCost: 0, totalRevenue: 0, items: [] };
+    const fullRef = tx.reference_number || "No Reference";
+    const ref = fullRef.split('/')[0];
+    if (!acc[ref]) acc[ref] = { ref, fullRefs: new Set<string>(), txs: [], client: tx.customer_supplier_name, date: tx.transaction_date, type: tx.transaction_type, totalCost: 0, totalRevenue: 0, items: [] };
+    acc[ref].fullRefs.add(fullRef);
     acc[ref].txs.push(tx);
     for (const li of tx.items || []) {
       acc[ref].items.push(li);
@@ -213,6 +215,11 @@ const CostSheet = () => {
                           {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                           <div>
                             <div className="font-mono text-sm font-medium">{group.ref}</div>
+                            {group.fullRefs.size > 1 && (
+                              <div className="text-xs text-muted-foreground">
+                                {Array.from(group.fullRefs).join(' | ')}
+                              </div>
+                            )}
                             <div className="text-xs text-muted-foreground">{group.client || "No client"} · {new Date(group.date).toLocaleDateString()}</div>
                           </div>
                         </div>
