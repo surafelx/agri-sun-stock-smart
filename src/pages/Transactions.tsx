@@ -887,9 +887,20 @@ const Transactions = () => {
                       </div>
                       <div className="flex items-center gap-1">
                         {formData.customerSupplier === s.name && <Badge variant="default" className="text-xs mr-1">Selected</Badge>}
-                        <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={(e) => {
+                        <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={async (e) => {
                           e.stopPropagation();
-                          setEditingSupplier(s);
+                          let supplierId = s.id || s._id;
+                          if (!supplierId) {
+                            try {
+                              const res = await suppliersApi.create({ name: s.name, tin_no: s.tinNo || "", contact: s.contact || "" });
+                              supplierId = res.supplier?._id || res.supplier?.id;
+                              fetchAll();
+                            } catch (err: any) {
+                              toast({ variant: "destructive", title: "Error", description: "Failed to register supplier: " + err.message });
+                              return;
+                            }
+                          }
+                          setEditingSupplier({ ...s, id: supplierId });
                           setEditSupplierName(s.name);
                           setEditSupplierTin(s.tinNo || "");
                           setEditSupplierContact(s.contact || "");
