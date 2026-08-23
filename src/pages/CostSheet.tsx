@@ -1,23 +1,16 @@
 import { useEffect, useState } from "react";
-import { transactions as txApi, items as itemsApi, categories as categoriesApi, suppliers as suppliersApi, normalizeTransaction, normalizeItem, normalizeCategory, normalizeSubcategory } from "@/lib/api";
+import { transactions as txApi, normalizeTransaction } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Search, ArrowRightLeft, TrendingUp, DollarSign, Package, FileText, Pencil, Trash2, Plus, ArrowLeft } from "lucide-react";
-import { transactions as txNormal } from "@/lib/api";
+import { Search, ArrowRightLeft, TrendingUp, DollarSign, Package, FileText } from "lucide-react";
 import jsPDF from "jspdf";
-
-const emptyItem = () => ({ categoryId: "", subcategoryId: "", itemId: "", quantity: "", unitPrice: "", purchaseRef: "" });
 
 const CostSheet = () => {
   const navigate = useNavigate();
@@ -27,20 +20,6 @@ const CostSheet = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [editingTx, setEditingTx] = useState<any>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  const [editForm, setEditForm] = useState({ type: "transfer", reference: "", date: "", customerSupplier: "", contact: "", tinNo: "", notes: "", items: [emptyItem()] });
-  const [itemsList, setItemsList] = useState<any[]>([]);
-  const [categoriesList, setCategoriesList] = useState<any[]>([]);
-  const [subcategoriesList, setSubcategoriesList] = useState<any[]>([]);
-  const [itemPickerOpen, setItemPickerOpen] = useState(false);
-  const [itemPickerIndex, setItemPickerIndex] = useState(0);
-  const [itemPickerSearch, setItemPickerSearch] = useState("");
-  const [itemPickerSelected, setItemPickerSelected] = useState<any | null>(null);
-  const [itemPickerStockCard, setItemPickerStockCard] = useState<any[]>([]);
-  const [itemPickerStockLoading, setItemPickerStockLoading] = useState(false);
-  const [itemPickerForm, setItemPickerForm] = useState<any>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -49,28 +28,7 @@ const CostSheet = () => {
 
   useEffect(() => {
     fetchTransactions();
-    fetchFormData();
   }, [debouncedSearch, typeFilter]);
-
-  const fetchFormData = async () => {
-    try {
-      const [itemRes, catRes] = await Promise.all([
-        itemsApi.list({ limit: "500" }),
-        categoriesApi.list(),
-      ]);
-      setItemsList((itemRes.items || []).map(normalizeItem));
-      const cats = (catRes.categories || []).map(normalizeCategory);
-      setCategoriesList(cats);
-      const allSubs: any[] = [];
-      for (const cat of cats) {
-        const subRes = await categoriesApi.listSubcategories(cat.id);
-        allSubs.push(...(subRes.subcategories || []).map(normalizeSubcategory));
-      }
-      setSubcategoriesList(allSubs);
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Error", description: err.message });
-    }
-  };
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -99,71 +57,6 @@ const CostSheet = () => {
     if (items.length === 0) return "-";
     if (items.length === 1) return items[0].items?.name || "Unknown";
     return `${items.length} items`;
-  };
-
-  const updateFormItem = (form: typeof editForm, index: number, field: string, value: string) => {
-    const newItems = [...form.items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    if (field === "categoryId") { newItems[index].subcategoryId = ""; newItems[index].itemId = ""; }
-    if (field === "subcategoryId") { newItems[index].itemId = ""; }
-    return newItems;
-  };
-
-  const filteredItemsForRow = (categoryId: string, subcategoryId: string) =>
-    itemsList.filter((inv) => {
-      const matchCat = !categoryId || inv.category_id === categoryId;
-      const matchSub = !subcategoryId || inv.subcategory_id === subcategoryId;
-      return matchCat && matchSub;
-    });
-
-  const openEdit = (tx: any) => {
-    const txType = tx.transaction_type || "transfer";
-    const editItems = (tx.items || []).map((li: any) => ({
-      categoryId: li.items?.category_id || li.items?.categories?.id || "",
-      subcategoryId: li.items?.subcategory_id || li.items?.subcategories?.id || "",
-      itemId: li.item_id || li.items?.id || "",
-      quantity: String(li.quantity ?? ""),
-      unitPrice: String(li.unit_price ?? ""),
-      purchaseRef: "",
-    }));
-    setEditingTx(tx);
-    setEditForm({
-      type: txType,
-      reference: tx.reference_number || "",
-      date: tx.transaction_date ? new Date(tx.transaction_date).toISOString().split("T")[0] : "",
-      customerSupplier: tx.customer_supplier_name || "",
-      contact: tx.customer_supplier_contact || "",
-      tinNo: tx.tin_no || tx.tinNo || "",
-      notes: tx.notes || "",
-      items: editItems.length > 0 ? editItems : [emptyItem()],
-    });
-  };
-
-  const handleEditSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingTx) return;
-    setSubmitting(true);
-    try {
-      const lineItems = editForm.items.filter((i) => i.itemId && i.quantity).map((i) => ({
-        item: i.itemId, quantity: parseFloat(i.quantity), unitPrice: parseFloat(i.unitPrice) || 0,
-      }));
-      await txApi.update(editingTx.id, {
-        transactionDate: editForm.date,
-        referenceNumber: editForm.reference,
-        customerSupplierName: editForm.customerSupplier,
-        customerSupplierContact: editForm.contact || null,
-        tinNo: editForm.tinNo || null,
-        notes: editForm.notes || null,
-        ...(lineItems.length > 0 ? { items: lineItems } : {}),
-      });
-      toast({ title: "Success", description: "Transaction updated" });
-      setEditingTx(null);
-      fetchTransactions();
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Error updating transaction", description: err.message });
-    } finally {
-      setSubmitting(false);
-    }
   };
 
   const generatePDF = (tx: any) => {
@@ -331,9 +224,6 @@ const CostSheet = () => {
                           </TableCell>
                           <TableCell className="text-right py-2">
                             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Edit" onClick={() => openEdit(tx)}>
-                                <Pencil className="h-3.5 w-3.5" />
-                              </Button>
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="PDF" onClick={() => generatePDF(tx)}>
                                 <FileText className="h-3.5 w-3.5" />
                               </Button>
@@ -349,190 +239,6 @@ const CostSheet = () => {
           </CardContent>
         </Card>
       </div>
-
-      <Dialog open={!!editingTx} onOpenChange={(open) => { if (!open) setEditingTx(null); }}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg">Edit {editForm.type === 'transfer' ? 'Transfer' : 'Sale'}</DialogTitle>
-            <DialogDescription>Update reference, client info, line items, and notes</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleEditSubmit} className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Reference Number *</Label>
-                <Input value={editForm.reference} onChange={(e) => setEditForm({ ...editForm, reference: e.target.value })} required />
-              </div>
-              <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} required /></div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div className="space-y-1"><Label>Client/Customer</Label><Input value={editForm.customerSupplier} onChange={(e) => setEditForm({ ...editForm, customerSupplier: e.target.value })} /></div>
-              <div className="space-y-1"><Label>Contact</Label><Input value={editForm.contact} onChange={(e) => setEditForm({ ...editForm, contact: e.target.value })} /></div>
-              <div className="space-y-1"><Label>TIN No</Label><Input value={editForm.tinNo} onChange={(e) => setEditForm({ ...editForm, tinNo: e.target.value })} placeholder="Tax ID" /></div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Line Items</Label>
-              <div className="grid grid-cols-6 gap-2 text-xs font-medium text-muted-foreground">
-                <div>Category</div><div>Subcategory</div><div>Item</div><div>Qty</div><div>Unit Price</div><div></div>
-              </div>
-              {editForm.items.map((item, index) => (
-                <div key={index} className="grid grid-cols-6 gap-2 items-end">
-                  <div>
-                    <Select value={item.categoryId} onValueChange={(v) => setEditForm({ ...editForm, items: updateFormItem(editForm, index, "categoryId", v) })}>
-                      <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
-                      <SelectContent>{categoriesList.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Select value={item.subcategoryId} onValueChange={(v) => setEditForm({ ...editForm, items: updateFormItem(editForm, index, "subcategoryId", v) })}>
-                      <SelectTrigger><SelectValue placeholder="Subcategory" /></SelectTrigger>
-                      <SelectContent>{subcategoriesList.filter((s) => !item.categoryId || s.category_id === item.categoryId).map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Button type="button" variant="outline" className="w-full justify-start text-left h-10 font-normal" onClick={() => { setItemPickerIndex(index); setItemPickerForm(editForm); setItemPickerSearch(""); setItemPickerOpen(true); }}>
-                      {item.itemId ? itemsList.find((i) => i.id === item.itemId)?.name || "Selected" : "Select item"}
-                    </Button>
-                  </div>
-                  <div>
-                    <Input type="number" step="0.01" value={item.quantity} onChange={(e) => setEditForm({ ...editForm, items: updateFormItem(editForm, index, "quantity", e.target.value) })} placeholder="0" />
-                  </div>
-                  <div>
-                    <Input type="number" step="0.01" value={item.unitPrice} onChange={(e) => setEditForm({ ...editForm, items: updateFormItem(editForm, index, "unitPrice", e.target.value) })} placeholder="0.00" />
-                  </div>
-                  <div className="flex items-end gap-0.5 pb-0.5">
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setEditForm({ ...editForm, items: [...editForm.items, emptyItem()] })} className="h-9 w-9 p-0"><Plus className="h-4 w-4" /></Button>
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setEditForm({ ...editForm, items: editForm.items.filter((_, i) => i !== index) })} disabled={editForm.items.length === 1} className="h-9 w-9 p-0"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="space-y-1"><Label>Notes</Label><Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} rows={2} /></div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setEditingTx(null)}>Cancel</Button>
-              <Button type="submit" disabled={submitting}>{submitting ? "Updating..." : "Update"}</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={itemPickerOpen} onOpenChange={(open) => { if (!open) { setItemPickerOpen(false); setItemPickerSelected(null); setItemPickerStockCard([]); } }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-lg">{itemPickerSelected ? `${itemPickerSelected.name} — Purchase History` : "Select Item"}</DialogTitle>
-            <DialogDescription>{itemPickerSelected ? "Choose a specific purchase to reference" : "Search and choose an item"}</DialogDescription>
-          </DialogHeader>
-          {itemPickerSelected ? (
-            <>
-              <Button variant="ghost" size="sm" className="mb-2 w-fit" onClick={() => { setItemPickerSelected(null); setItemPickerStockCard([]); }}>
-                <ArrowLeft className="h-4 w-4 mr-1" />Back to items
-              </Button>
-              {itemPickerStockLoading ? (
-                <div className="flex items-center justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
-              ) : itemPickerStockCard.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-sm text-muted-foreground mb-3">No purchase history found for this item</p>
-                  <Button variant="outline" size="sm" onClick={() => {
-                    const newItems = [...itemPickerForm.items];
-                    newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(itemPickerSelected.quantity ?? ""), unitPrice: String(itemPickerSelected.cost_price || itemPickerSelected.unit_price || ""), purchaseRef: "" };
-                    setEditForm({ ...itemPickerForm, items: newItems });
-                    setItemPickerOpen(false);
-                    setItemPickerSelected(null);
-                  }}>Select without purchase reference</Button>
-                </div>
-              ) : (
-                <div className="border rounded-lg max-h-[50vh] overflow-y-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="h-8 text-xs">Date</TableHead>
-                        <TableHead className="h-8 text-xs">Reference</TableHead>
-                        <TableHead className="h-8 text-xs text-right">Purchased Qty</TableHead>
-                        <TableHead className="h-8 text-xs text-right">Unit Price</TableHead>
-                        <TableHead className="h-8 text-xs text-right">Remaining</TableHead>
-                        <TableHead className="h-8 text-xs text-right">Action</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {itemPickerStockCard.filter((mv) => mv.quantityIn > 0 && (mv.remaining ?? mv.quantityIn) > 0).map((mv, idx) => (
-                        <TableRow key={mv.id || idx} className="cursor-pointer hover:bg-muted/50" onClick={() => {
-                          const newItems = [...itemPickerForm.items];
-                          newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(mv.remaining ?? mv.quantity ?? mv.quantityIn), unitPrice: String(mv.unitPrice), purchaseRef: mv.reference || "" };
-                          setEditForm({ ...itemPickerForm, items: newItems });
-                          setItemPickerOpen(false);
-                          setItemPickerSelected(null);
-                          setItemPickerStockCard([]);
-                        }}>
-                          <TableCell className="text-xs py-2">{new Date(mv.date).toLocaleDateString()}</TableCell>
-                          <TableCell className="font-mono text-xs py-2">{mv.reference || '-'}</TableCell>
-                          <TableCell className="text-right text-xs py-2 font-medium">{mv.quantity ?? mv.quantityIn}</TableCell>
-                          <TableCell className="text-right text-xs py-2">ETB {mv.unitPrice?.toFixed(2)}</TableCell>
-                          <TableCell className="text-right text-xs py-2">{mv.remaining ?? mv.balance}</TableCell>
-                          <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <div className="relative mb-3">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search by name, SKU, category..." value={itemPickerSearch} onChange={(e) => setItemPickerSearch(e.target.value)} className="pl-9" autoFocus />
-              </div>
-              <div className="border rounded-lg max-h-[50vh] overflow-y-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="h-8 text-xs">Name</TableHead>
-                      <TableHead className="h-8 text-xs">SKU</TableHead>
-                      <TableHead className="h-8 text-xs">Category</TableHead>
-                      <TableHead className="h-8 text-xs text-right">Qty</TableHead>
-                      <TableHead className="h-8 text-xs text-right">Cost Price</TableHead>
-                      <TableHead className="h-8 text-xs text-right">Action</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(() => {
-                      const row = itemPickerForm?.items?.[itemPickerIndex];
-                      const filtered = itemsList.filter((inv) => {
-                        const matchCat = !row?.categoryId || inv.category_id === row.categoryId;
-                        const matchSub = !row?.subcategoryId || inv.subcategory_id === row.subcategoryId;
-                        const matchSearch = !itemPickerSearch || (() => {
-                          const t = itemPickerSearch.toLowerCase();
-                          return inv.name?.toLowerCase().includes(t) || inv.sku?.toLowerCase().includes(t) || inv.categories?.name?.toLowerCase().includes(t);
-                        })();
-                        return matchCat && matchSub && matchSearch;
-                      });
-                      if (filtered.length === 0) return <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">No items found</TableCell></TableRow>;
-                      return filtered.map((inv) => (
-                        <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50" onClick={async () => {
-                          setItemPickerSelected(inv);
-                          setItemPickerStockLoading(true);
-                          try {
-                            const res = await txNormal.stockCard(inv.id);
-                            setItemPickerStockCard(res.stockCard || []);
-                          } catch { setItemPickerStockCard([]); }
-                          setItemPickerStockLoading(false);
-                        }}>
-                          <TableCell className="font-medium text-xs py-2">{inv.name}</TableCell>
-                          <TableCell className="font-mono text-xs py-2">{inv.sku}</TableCell>
-                          <TableCell className="text-xs py-2">{inv.categories?.name || '-'}</TableCell>
-                          <TableCell className="text-right text-xs py-2">{inv.quantity}</TableCell>
-                          <TableCell className="text-right text-xs py-2">ETB {inv.cost_price?.toFixed(2)}</TableCell>
-                          <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
-                        </TableRow>
-                      ));
-                    })()}
-                  </TableBody>
-                </Table>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
 
     </Layout>
   );
