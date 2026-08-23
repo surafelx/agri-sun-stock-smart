@@ -46,6 +46,7 @@ const Transactions = () => {
   const [txPickerOpen, setTxPickerOpen] = useState(false);
   const [txPickerSearch, setTxPickerSearch] = useState("");
   const [txPickerTarget, setTxPickerTarget] = useState<"create" | "edit">("create");
+  const [txPickerAll, setTxPickerAll] = useState<any[]>([]);
   const [itemPickerSelected, setItemPickerSelected] = useState<any | null>(null);
   const [itemPickerStockCard, setItemPickerStockCard] = useState<any[]>([]);
   const [itemPickerStockLoading, setItemPickerStockLoading] = useState(false);
@@ -398,7 +399,11 @@ const Transactions = () => {
                   <div className="space-y-1"><Label>Reference Number {formData.type !== 'transfer' ? '*' : ''}</Label>
                     <div className="flex gap-2">
                       <Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder={formData.type === 'transfer' ? "Auto-generated if empty" : "e.g., INV-2024-001"} required={formData.type !== 'transfer'} className="flex-1" />
-                      <Button type="button" variant="outline" size="sm" onClick={() => { setTxPickerTarget("create"); setTxPickerSearch(""); setTxPickerOpen(true); }}>Select</Button>
+                       <Button type="button" variant="outline" size="sm" onClick={async () => {
+                         const res = await txApi.list({ limit: "500" });
+                         setTxPickerAll((res.transactions || []).map(normalizeTransaction));
+                         setTxPickerTarget("create"); setTxPickerSearch(""); setTxPickerOpen(true);
+                       }}>Select</Button>
                     </div>
                   </div>
                   <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required /></div>
@@ -531,7 +536,11 @@ const Transactions = () => {
             <div className="space-y-1"><Label>Reference Number *</Label>
               <div className="flex gap-2">
                 <Input value={editFormData.reference} onChange={(e) => setEditFormData({ ...editFormData, reference: e.target.value })} required className="flex-1" />
-                <Button type="button" variant="outline" size="sm" onClick={() => { setTxPickerTarget("edit"); setTxPickerSearch(""); setTxPickerOpen(true); }}>Select</Button>
+                <Button type="button" variant="outline" size="sm" onClick={async () => {
+                  const res = await txApi.list({ limit: "500" });
+                  setTxPickerAll((res.transactions || []).map(normalizeTransaction));
+                  setTxPickerTarget("edit"); setTxPickerSearch(""); setTxPickerOpen(true);
+                }}>Select</Button>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -573,7 +582,7 @@ const Transactions = () => {
               </TableHeader>
               <TableBody>
                 {(() => {
-                  const filtered = txList.filter((tx) => {
+                  const filtered = (txPickerAll.length > 0 ? txPickerAll : txList).filter((tx) => {
                     if (!txPickerSearch) return true;
                     const t = txPickerSearch.toLowerCase();
                     return tx.reference_number?.toLowerCase().includes(t)
@@ -594,7 +603,6 @@ const Transactions = () => {
                         setFormData({
                           ...formData,
                           reference: tx.reference_number,
-                          type: tx.transaction_type,
                           customerSupplier: tx.customer_supplier_name || "",
                           contact: tx.customer_supplier_contact || "",
                           tinNo: tx.tin_no || tx.tinNo || "",

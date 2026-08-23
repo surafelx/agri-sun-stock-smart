@@ -5,8 +5,13 @@ import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, ShoppingCart, TrendingUp, FileText, ArrowRightLeft } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { ArrowLeft, ShoppingCart, TrendingUp, FileText, ArrowRightLeft, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import jsPDF from 'jspdf';
 
@@ -16,6 +21,10 @@ const TransactionDetail = () => {
   const { toast } = useToast();
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({ reference: "", date: "", customerSupplier: "", contact: "", tinNo: "", notes: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {
     if (transactionId) {
@@ -26,6 +35,54 @@ const TransactionDetail = () => {
     }
   }, [transactionId]);
 
+  const openEdit = () => {
+    setEditForm({
+      reference: transaction.reference_number || "",
+      date: transaction.transaction_date ? new Date(transaction.transaction_date).toISOString().split("T")[0] : "",
+      customerSupplier: transaction.customer_supplier_name || "",
+      contact: transaction.customer_supplier_contact || "",
+      tinNo: transaction.tin_no || transaction.tinNo || "",
+      notes: transaction.notes || "",
+    });
+    setEditOpen(true);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transactionId) return;
+    setSubmitting(true);
+    try {
+      await txApi.update(transactionId, {
+        transactionDate: editForm.date,
+        referenceNumber: editForm.reference,
+        customerSupplierName: editForm.customerSupplier,
+        customerSupplierContact: editForm.contact || null,
+        tinNo: editForm.tinNo || null,
+        notes: editForm.notes || null,
+      });
+      const res = await txApi.get(transactionId);
+      setTransaction(normalizeTransaction(res.transaction));
+      toast({ title: "Success", description: "Transaction updated" });
+      setEditOpen(false);
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!transactionId) return;
+    try {
+      await txApi.delete(transactionId);
+      toast({ title: "Success", description: "Transaction deleted and stock reversed" });
+      setDeleteOpen(false);
+      navigate('/transactions');
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    }
+  };
+
   const generatePDF = () => {
     if (!transaction) return;
     const doc = new jsPDF();
@@ -35,7 +92,7 @@ const TransactionDetail = () => {
     doc.text(`Type: ${transaction.transaction_type?.toUpperCase()}`, 20, 40);
     doc.text(`Reference: ${transaction.reference_number}`, 20, 50);
     doc.text(`Date: ${new Date(transaction.transaction_date).toLocaleDateString()}`, 20, 60);
-    doc.text(`${transaction.transaction_type === 'purchase' ? 'Supplier' : transaction.transaction_type === 'transfer' ? 'From' : 'Customer'}: ${transaction.customer_supplier_name}`, 20, 70);
+    doc.text(`${transaction.transaction_type === 'purchase' ? 'Supplier' : transaction.transaction_type === 'transfer' ? 'Client/Customer' : 'Customer'}: ${transaction.customer_supplier_name}`, 20, 70);
     if (transaction.customer_supplier_contact) doc.text(`Contact: ${transaction.customer_supplier_contact}`, 20, 80);
     let y = 100;
     doc.setFontSize(10);
@@ -77,14 +134,22 @@ const TransactionDetail = () => {
     );
   }
 
+  const label = transaction.transaction_type === 'purchase' ? 'Supplier' : transaction.transaction_type === 'transfer' ? 'Client/Customer' : 'Customer';
+
   return (
     <Layout>
       <div className="space-y-4">
-        <div className="flex items-center gap-4">
-          <Button variant="outline" size="sm" onClick={() => navigate('/transactions')}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>
-          <div>
-            <h2 className="text-2xl font-bold">Transaction Details</h2>
-            <p className="text-sm text-muted-foreground">Reference: {transaction.reference_number}</p>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>
+            <div>
+              <h2 className="text-2xl font-bold">Transaction Details</h2>
+              <p className="text-sm text-muted-foreground">Reference: {transaction.reference_number}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="mr-1.5 h-4 w-4" />Edit</Button>
+            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}><Trash2 className="mr-1.5 h-4 w-4" />Delete</Button>
           </div>
         </div>
 
@@ -99,7 +164,7 @@ const TransactionDetail = () => {
             <CardContent className="space-y-2">
               <div><span className="font-medium">Reference:</span> {transaction.reference_number}</div>
               <div><span className="font-medium">Date:</span> {new Date(transaction.transaction_date).toLocaleDateString()}</div>
-              <div><span className="font-medium">{transaction.transaction_type === 'purchase' ? 'Supplier' : transaction.transaction_type === 'transfer' ? 'From' : 'Customer'}:</span> {transaction.customer_supplier_name}</div>
+              <div><span className="font-medium">{label}:</span> {transaction.customer_supplier_name}</div>
               {transaction.customer_supplier_contact && <div><span className="font-medium">Contact:</span> {transaction.customer_supplier_contact}</div>}
               {transaction.notes && <div><span className="font-medium">Notes:</span> {transaction.notes}</div>}
             </CardContent>
@@ -161,6 +226,46 @@ const TransactionDetail = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg">Edit Transaction</DialogTitle>
+            <DialogDescription>Update reference, client/supplier info, and notes</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-3">
+            <div className="space-y-1"><Label>Reference Number *</Label>
+              <Input value={editForm.reference} onChange={(e) => setEditForm({ ...editForm, reference: e.target.value })} required />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} required /></div>
+              <div className="space-y-1"><Label>Contact</Label><Input value={editForm.contact} onChange={(e) => setEditForm({ ...editForm, contact: e.target.value })} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>{label}</Label><Input value={editForm.customerSupplier} onChange={(e) => setEditForm({ ...editForm, customerSupplier: e.target.value })} /></div>
+              <div className="space-y-1"><Label>TIN No</Label><Input value={editForm.tinNo} onChange={(e) => setEditForm({ ...editForm, tinNo: e.target.value })} placeholder="Tax ID" /></div>
+            </div>
+            <div className="space-y-1"><Label>Notes</Label><Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} rows={2} /></div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={submitting}>{submitting ? "Updating..." : "Update"}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+            <AlertDialogDescription>This will reverse the stock changes and cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 };
