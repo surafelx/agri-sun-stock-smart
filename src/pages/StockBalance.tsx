@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Package, TrendingUp, DollarSign, AlertTriangle, Plus, Minus, Search } from "lucide-react";
+import { Package, TrendingUp, DollarSign, AlertTriangle, Plus, Minus, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 
 const StockBalance = () => {
   const navigate = useNavigate();
@@ -20,6 +20,8 @@ const StockBalance = () => {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [colSearch, setColSearch] = useState({ sku: "", name: "", category: "", uom: "", quantity: "", costPrice: "", inventoryValue: "" });
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -46,7 +48,50 @@ const StockBalance = () => {
 
   const categories = [...new Set(balances.map((b) => b.category?.name).filter(Boolean))];
 
-  const filteredBalances = balances;
+  const filteredBalances = balances.filter((b: any) => {
+    if (colSearch.sku && !b.sku?.toLowerCase().includes(colSearch.sku.toLowerCase())) return false;
+    if (colSearch.name && !b.name?.toLowerCase().includes(colSearch.name.toLowerCase())) return false;
+    if (colSearch.category && !b.category?.name?.toLowerCase().includes(colSearch.category.toLowerCase())) return false;
+    if (colSearch.uom && !b.uom?.toLowerCase().includes(colSearch.uom.toLowerCase())) return false;
+    if (colSearch.quantity && !String(b.quantity).includes(colSearch.quantity)) return false;
+    if (colSearch.costPrice && !String(b.costPrice).includes(colSearch.costPrice)) return false;
+    if (colSearch.inventoryValue && !String(b.inventoryValue).includes(colSearch.inventoryValue)) return false;
+    return true;
+  });
+
+  const sortedBalances = [...filteredBalances].sort((a: any, b: any) => {
+    if (!sortConfig) return 0;
+    const { key, direction } = sortConfig;
+    let aVal = a[key];
+    let bVal = b[key];
+
+    if (key === 'category') {
+      aVal = a.category?.name || '';
+      bVal = b.category?.name || '';
+    }
+
+    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+
+    if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+    if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const handleSort = (key: string) => {
+    setSortConfig((prev) => {
+      if (prev?.key === key) {
+        if (prev.direction === 'asc') return { key, direction: 'desc' };
+        if (prev.direction === 'desc') return null;
+      }
+      return { key, direction: 'asc' };
+    });
+  };
+
+  const getSortIndicator = (key: string) => {
+    if (sortConfig?.key !== key) return <ArrowUpDown className="h-3 w-3 ml-1 opacity-50" />;
+    return sortConfig.direction === 'asc' ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
+  };
 
   const getStockStatus = (b: any) => {
     if (b.quantity === 0) return { status: "Out of Stock", variant: "destructive" as const };
@@ -133,8 +178,8 @@ const StockBalance = () => {
                     <SelectItem value="out_of_stock">Out of Stock</SelectItem>
                   </SelectContent>
                 </Select>
-                {(searchTerm || categoryFilter !== "all" || statusFilter !== "all") && (
-                  <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setCategoryFilter("all"); setStatusFilter("all"); }}>Clear</Button>
+                {(searchTerm || categoryFilter !== "all" || statusFilter !== "all" || Object.values(colSearch).some(v => v)) && (
+                  <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setCategoryFilter("all"); setStatusFilter("all"); setColSearch({ sku: "", name: "", category: "", uom: "", quantity: "", costPrice: "", inventoryValue: "" }); setSortConfig(null); }}>Clear All</Button>
                 )}
               </div>
             </div>
@@ -153,7 +198,7 @@ const StockBalance = () => {
                 <h3 className="text-lg font-semibold mb-2">No items in inventory</h3>
                 <Button onClick={() => navigate('/items')}>Go to Items Management</Button>
               </div>
-            ) : filteredBalances.length === 0 ? (
+            ) : sortedBalances.length === 0 ? (
               <div className="text-center py-8">
                 <Search className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
                 <h3 className="text-base font-semibold mb-1">No results found</h3>
@@ -164,19 +209,93 @@ const StockBalance = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="h-9 text-xs">SKU</TableHead>
-                      <TableHead className="h-9 text-xs">Name</TableHead>
-                      <TableHead className="h-9 text-xs">Category</TableHead>
-                      <TableHead className="h-9 text-xs">UOM</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Quantity</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Cost Price</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Inventory Value</TableHead>
+                      <TableHead className="h-9 text-xs cursor-pointer hover:bg-muted" onClick={() => handleSort('sku')}>
+                        <div className="flex items-center">SKU {getSortIndicator('sku')}</div>
+                      </TableHead>
+                      <TableHead className="h-9 text-xs cursor-pointer hover:bg-muted" onClick={() => handleSort('name')}>
+                        <div className="flex items-center">Name {getSortIndicator('name')}</div>
+                      </TableHead>
+                      <TableHead className="h-9 text-xs cursor-pointer hover:bg-muted" onClick={() => handleSort('category')}>
+                        <div className="flex items-center">Category {getSortIndicator('category')}</div>
+                      </TableHead>
+                      <TableHead className="h-9 text-xs cursor-pointer hover:bg-muted" onClick={() => handleSort('uom')}>
+                        <div className="flex items-center">UOM {getSortIndicator('uom')}</div>
+                      </TableHead>
+                      <TableHead className="h-9 text-xs text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('quantity')}>
+                        <div className="flex items-center justify-end">Quantity {getSortIndicator('quantity')}</div>
+                      </TableHead>
+                      <TableHead className="h-9 text-xs text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('costPrice')}>
+                        <div className="flex items-center justify-end">Cost Price {getSortIndicator('costPrice')}</div>
+                      </TableHead>
+                      <TableHead className="h-9 text-xs text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('inventoryValue')}>
+                        <div className="flex items-center justify-end">Inventory Value {getSortIndicator('inventoryValue')}</div>
+                      </TableHead>
                       <TableHead className="h-9 text-xs">Status</TableHead>
                       <TableHead className="h-9 text-xs text-right">Actions</TableHead>
                     </TableRow>
+                    <TableRow>
+                      <TableHead className="h-8 p-1">
+                        <Input
+                          placeholder="Filter SKU"
+                          value={colSearch.sku}
+                          onChange={(e) => setColSearch({ ...colSearch, sku: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      </TableHead>
+                      <TableHead className="h-8 p-1">
+                        <Input
+                          placeholder="Filter Name"
+                          value={colSearch.name}
+                          onChange={(e) => setColSearch({ ...colSearch, name: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      </TableHead>
+                      <TableHead className="h-8 p-1">
+                        <Input
+                          placeholder="Filter Category"
+                          value={colSearch.category}
+                          onChange={(e) => setColSearch({ ...colSearch, category: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      </TableHead>
+                      <TableHead className="h-8 p-1">
+                        <Input
+                          placeholder="Filter UOM"
+                          value={colSearch.uom}
+                          onChange={(e) => setColSearch({ ...colSearch, uom: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      </TableHead>
+                      <TableHead className="h-8 p-1">
+                        <Input
+                          placeholder="Filter Qty"
+                          value={colSearch.quantity}
+                          onChange={(e) => setColSearch({ ...colSearch, quantity: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      </TableHead>
+                      <TableHead className="h-8 p-1">
+                        <Input
+                          placeholder="Filter Cost"
+                          value={colSearch.costPrice}
+                          onChange={(e) => setColSearch({ ...colSearch, costPrice: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      </TableHead>
+                      <TableHead className="h-8 p-1">
+                        <Input
+                          placeholder="Filter Value"
+                          value={colSearch.inventoryValue}
+                          onChange={(e) => setColSearch({ ...colSearch, inventoryValue: e.target.value })}
+                          className="h-7 text-xs"
+                        />
+                      </TableHead>
+                      <TableHead className="h-8 p-1"></TableHead>
+                      <TableHead className="h-8 p-1"></TableHead>
+                    </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredBalances.map((b: any) => {
+                    {sortedBalances.map((b: any) => {
                       const ss = getStockStatus(b);
                       return (
                         <TableRow key={b.id}>
