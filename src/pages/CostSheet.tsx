@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { transactions as txApi, normalizeTransaction } from "@/lib/api";
 import Layout from "@/components/Layout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Search, ArrowRightLeft, TrendingUp, DollarSign, Package, FileText } from "lucide-react";
+import { Search, ArrowRightLeft, TrendingUp, DollarSign, Package, FileText, ChevronDown, ChevronRight } from "lucide-react";
 import jsPDF from "jspdf";
 
 const CostSheet = () => {
@@ -20,6 +20,7 @@ const CostSheet = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [expandedRefs, setExpandedRefs] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -46,35 +47,47 @@ const CostSheet = () => {
     }
   };
 
+  const grouped = transactions.reduce((acc, tx) => {
+    const ref = tx.reference_number || "No Reference";
+    if (!acc[ref]) acc[ref] = { ref, txs: [], client: tx.customer_supplier_name, date: tx.transaction_date, type: tx.transaction_type, totalCost: 0, totalRevenue: 0, items: [] };
+    acc[ref].txs.push(tx);
+    for (const li of tx.items || []) {
+      acc[ref].items.push(li);
+      acc[ref].totalCost += (li.unit_price || 0) * (li.quantity || 0);
+    }
+    acc[ref].totalRevenue += tx.total_amount || 0;
+    return acc;
+  }, {} as Record<string, any>);
+
+  const groups = Object.values(grouped);
+
   const totalCost = transactions.reduce((sum, tx) =>
     sum + (tx.items || []).reduce((s: number, li: any) => s + (li.unit_price || 0) * (li.quantity || 0), 0), 0
   );
   const totalRevenue = transactions.reduce((sum, tx) => sum + (tx.total_amount || 0), 0);
   const totalClients = new Set(transactions.map((tx) => tx.customer_supplier_name).filter(Boolean)).size;
 
-  const getItemsSummary = (tx: any) => {
-    const items = tx.items || [];
-    if (items.length === 0) return "-";
-    if (items.length === 1) return items[0].items?.name || "Unknown";
-    return `${items.length} items`;
+  const toggleRef = (ref: string) => {
+    const next = new Set(expandedRefs);
+    if (next.has(ref)) next.delete(ref);
+    else next.add(ref);
+    setExpandedRefs(next);
   };
 
-  const generatePDF = (tx: any) => {
+  const generateGroupPDF = (group: any) => {
     const doc = new jsPDF();
     doc.setFontSize(16);
     doc.text("COST SHEET", 105, 15, { align: "center" });
     doc.setFontSize(10);
-    doc.text(`Type: ${tx.transaction_type?.toUpperCase()}`, 20, 30);
-    doc.text(`Reference: ${tx.reference_number}`, 20, 37);
-    doc.text(`Date: ${new Date(tx.transaction_date).toLocaleDateString()}`, 20, 44);
-    doc.text(`Client/Supplier: ${tx.customer_supplier_name || "-"}`, 20, 51);
-    if (tx.customer_supplier_contact) doc.text(`Contact: ${tx.customer_supplier_contact}`, 20, 58);
-    if (tx.tin_no) doc.text(`TIN: ${tx.tin_no}`, 20, 65);
-    let y = 78;
+    doc.text(`Reference: ${group.ref}`, 20, 30);
+    doc.text(`Type: ${group.type?.toUpperCase()}`, 20, 37);
+    doc.text(`Date: ${new Date(group.date).toLocaleDateString()}`, 20, 44);
+    doc.text(`Client/Supplier: ${group.client || "-"}`, 20, 51);
+    let y = 64;
     doc.setFontSize(10);
     doc.text("Item", 20, y); doc.text("SKU", 90, y); doc.text("Qty", 120, y); doc.text("Unit Price", 140, y); doc.text("Total", 170, y);
     y += 5; doc.line(20, y, 190, y); y += 7;
-    for (const li of tx.items || []) {
+    for (const li of group.items) {
       doc.text(li.items?.name || "Unknown", 20, y);
       doc.text(li.items?.sku || "-", 90, y);
       doc.text(String(li.quantity), 120, y);
@@ -84,8 +97,9 @@ const CostSheet = () => {
     }
     y += 5; doc.line(20, y, 190, y); y += 7;
     doc.setFontSize(11);
-    doc.text(`Total: ETB ${(tx.total_amount || 0).toLocaleString()}`, 140, y);
-    doc.save(`cost-sheet-${tx.reference_number}.pdf`);
+    doc.text(`Total Cost: ETB ${group.totalCost.toLocaleString()}`, 20, y);
+    doc.text(`Total Revenue: ETB ${group.totalRevenue.toLocaleString()}`, 120, y);
+    doc.save(`cost-sheet-${group.ref}.pdf`);
     toast({ title: "PDF generated" });
   };
 
@@ -104,18 +118,18 @@ const CostSheet = () => {
       <div className="space-y-4">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Cost Sheet</h2>
-          <p className="text-sm text-muted-foreground">Track transfers and sales to clients</p>
+          <p className="text-sm text-muted-foreground">Track transfers and sales grouped by reference</p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Transactions</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Groups</CardTitle>
               <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{transactions.length}</div>
-              <p className="text-xs text-muted-foreground">Transfers & sales</p>
+              <div className="text-2xl font-bold">{groups.length}</div>
+              <p className="text-xs text-muted-foreground">By reference</p>
             </CardContent>
           </Card>
           <Card className="shadow-card">
@@ -169,6 +183,9 @@ const CostSheet = () => {
                 {(searchTerm || typeFilter !== "all") && (
                   <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setTypeFilter("all"); }}>Clear</Button>
                 )}
+                <Button variant="ghost" size="sm" onClick={() => { const all = new Set(groups.map((g) => g.ref)); setExpandedRefs(expandedRefs.size === all.size ? new Set() : all); }}>
+                  {expandedRefs.size === groups.length ? "Collapse All" : "Expand All"}
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -176,70 +193,90 @@ const CostSheet = () => {
 
         <Card className="shadow-card">
           <CardHeader>
-            <CardTitle className="text-lg">Cost Sheet</CardTitle>
-            <CardDescription>All transfers and sales with cost and revenue details</CardDescription>
+            <CardTitle className="text-lg">Cost Sheet Ledger</CardTitle>
           </CardHeader>
           <CardContent>
-            {transactions.length === 0 ? (
+            {groups.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold mb-2">No transactions found</h3>
                 <p className="text-sm text-muted-foreground">No transfers or sales match your criteria</p>
               </div>
             ) : (
-              <div className="border rounded-lg overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="h-9 text-xs">Date</TableHead>
-                      <TableHead className="h-9 text-xs">Reference</TableHead>
-                      <TableHead className="h-9 text-xs">Client/Supplier</TableHead>
-                      <TableHead className="h-9 text-xs">Contact</TableHead>
-                      <TableHead className="h-9 text-xs">Items</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Total Qty</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Cost</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Revenue</TableHead>
-                      <TableHead className="h-9 text-xs">Type</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {transactions.map((tx) => {
-                      const cost = (tx.items || []).reduce((s: number, li: any) => s + (li.unit_price || 0) * (li.quantity || 0), 0);
-                      const qty = (tx.items || []).reduce((s: number, li: any) => s + (li.quantity || 0), 0);
-                      return (
-                        <TableRow key={tx.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/transactions/${tx.id}`)}>
-                          <TableCell className="text-xs py-2">{new Date(tx.transaction_date).toLocaleDateString()}</TableCell>
-                          <TableCell className="font-mono text-xs py-2">{tx.reference_number}</TableCell>
-                          <TableCell className="text-sm py-2 font-medium">{tx.customer_supplier_name || "-"}</TableCell>
-                          <TableCell className="text-xs py-2">{tx.customer_supplier_contact || "-"}</TableCell>
-                          <TableCell className="text-xs py-2">{getItemsSummary(tx)}</TableCell>
-                          <TableCell className="text-right text-xs py-2 font-medium">{qty}</TableCell>
-                          <TableCell className="text-right text-xs py-2">ETB {cost.toLocaleString()}</TableCell>
-                          <TableCell className="text-right text-xs py-2 font-medium">ETB {(tx.total_amount || 0).toLocaleString()}</TableCell>
-                          <TableCell className="py-2">
-                            <Badge variant={tx.transaction_type === 'transfer' ? 'outline' : 'default'} className="text-xs">
-                              {tx.transaction_type?.charAt(0).toUpperCase() + tx.transaction_type?.slice(1)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right py-2">
-                            <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="PDF" onClick={() => generatePDF(tx)}>
-                                <FileText className="h-3.5 w-3.5" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+              <div className="space-y-2">
+                {groups.map((group) => {
+                  const isExpanded = expandedRefs.has(group.ref);
+                  return (
+                    <div key={group.ref} className="border rounded-lg">
+                      <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50" onClick={() => toggleRef(group.ref)}>
+                        <div className="flex items-center gap-3">
+                          {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                          <div>
+                            <div className="font-mono text-sm font-medium">{group.ref}</div>
+                            <div className="text-xs text-muted-foreground">{group.client || "No client"} · {new Date(group.date).toLocaleDateString()}</div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <Badge variant={group.type === 'transfer' ? 'outline' : 'default'} className="text-xs">
+                            {group.type?.charAt(0).toUpperCase() + group.type?.slice(1)}
+                          </Badge>
+                          <div className="text-right text-sm">
+                            <div className="font-medium">ETB {group.totalRevenue.toLocaleString()}</div>
+                            <div className="text-xs text-muted-foreground">Cost: ETB {group.totalCost.toLocaleString()}</div>
+                          </div>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="PDF" onClick={(e) => { e.stopPropagation(); generateGroupPDF(group); }}>
+                            <FileText className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      {isExpanded && (
+                        <div className="border-t px-4 py-2">
+                          <div className="border rounded-lg overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead className="h-8 text-xs">Item</TableHead>
+                                  <TableHead className="h-8 text-xs">SKU</TableHead>
+                                  <TableHead className="h-8 text-xs">Category</TableHead>
+                                  <TableHead className="h-8 text-xs text-right">Qty</TableHead>
+                                  <TableHead className="h-8 text-xs text-right">Unit Price</TableHead>
+                                  <TableHead className="h-8 text-xs text-right">Total</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {group.items.map((li: any, idx: number) => (
+                                  <TableRow key={li.id || idx}>
+                                    <TableCell className="text-sm py-1.5">{li.items?.name || "Unknown"}</TableCell>
+                                    <TableCell className="font-mono text-xs py-1.5">{li.items?.sku || "-"}</TableCell>
+                                    <TableCell className="text-xs py-1.5">{li.items?.categories?.name || "-"}</TableCell>
+                                    <TableCell className="text-right text-xs py-1.5 font-medium">{li.quantity}</TableCell>
+                                    <TableCell className="text-right text-xs py-1.5">ETB {(li.unit_price || 0).toFixed(2)}</TableCell>
+                                    <TableCell className="text-right text-xs py-1.5 font-medium">ETB {(li.total_price || 0).toFixed(2)}</TableCell>
+                                  </TableRow>
+                                ))}
+                                <TableRow className="bg-muted/50">
+                                  <TableCell colSpan={3} className="text-xs font-medium py-1.5">Total ({group.items.length} items)</TableCell>
+                                  <TableCell className="text-right text-xs font-medium py-1.5">{group.items.reduce((s: number, li: any) => s + (li.quantity || 0), 0)}</TableCell>
+                                  <TableCell></TableCell>
+                                  <TableCell className="text-right text-xs font-bold py-1.5">ETB {group.totalCost.toLocaleString()}</TableCell>
+                                </TableRow>
+                              </TableBody>
+                            </Table>
+                          </div>
+                          <div className="flex justify-end mt-2 gap-4 text-sm">
+                            <span className="text-muted-foreground">Revenue: <span className="font-bold text-foreground">ETB {group.totalRevenue.toLocaleString()}</span></span>
+                            <span className="text-muted-foreground">Profit: <span className={`font-bold ${(group.totalRevenue - group.totalCost) >= 0 ? 'text-green-600' : 'text-red-600'}`}>ETB {(group.totalRevenue - group.totalCost).toLocaleString()}</span></span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
-
     </Layout>
   );
 };
