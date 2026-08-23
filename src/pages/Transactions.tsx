@@ -400,7 +400,7 @@ const Transactions = () => {
                     <div className="flex gap-2">
                       <Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder={formData.type === 'transfer' ? "Auto-generated if empty" : "e.g., INV-2024-001"} required={formData.type !== 'transfer'} className="flex-1" />
                        <Button type="button" variant="outline" size="sm" onClick={async () => {
-                         const res = await txApi.list({ limit: "500" });
+                         const res = await txApi.list({ limit: "500", type: formData.type });
                          setTxPickerAll((res.transactions || []).map(normalizeTransaction));
                          setTxPickerTarget("create"); setTxPickerSearch(""); setTxPickerOpen(true);
                        }}>Select</Button>
@@ -561,7 +561,7 @@ const Transactions = () => {
       <Dialog open={txPickerOpen} onOpenChange={(open) => { if (!open) setTxPickerOpen(false); }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg">Select Transaction</DialogTitle>
+            <DialogTitle className="text-lg">Select {txPickerTarget === "create" ? formData.type?.charAt(0).toUpperCase() + formData.type?.slice(1) : "Transaction"} Reference</DialogTitle>
             <DialogDescription>Search by reference number, customer/supplier, or type</DialogDescription>
           </DialogHeader>
           <div className="relative mb-3">
