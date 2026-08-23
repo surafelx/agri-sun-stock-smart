@@ -6,10 +6,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Search, ArrowRightLeft, TrendingUp, DollarSign, Package, FileText } from "lucide-react";
+import { Search, ArrowRightLeft, TrendingUp, DollarSign, Package, FileText, Pencil, Trash2 } from "lucide-react";
 import jsPDF from "jspdf";
 
 const CostSheet = () => {
@@ -20,6 +24,10 @@ const CostSheet = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [editingTx, setEditingTx] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ reference: "", date: "", customerSupplier: "", contact: "", tinNo: "", notes: "" });
+  const [submitting, setSubmitting] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchTerm), 300);
@@ -50,9 +58,6 @@ const CostSheet = () => {
     sum + (tx.items || []).reduce((s: number, li: any) => s + (li.unit_price || 0) * (li.quantity || 0), 0), 0
   );
   const totalRevenue = transactions.reduce((sum, tx) => sum + (tx.total_amount || 0), 0);
-  const totalItems = transactions.reduce((sum, tx) =>
-    sum + (tx.items || []).reduce((s: number, li: any) => s + (li.quantity || 0), 0), 0
-  );
   const totalClients = new Set(transactions.map((tx) => tx.customer_supplier_name).filter(Boolean)).size;
 
   const filteredTransactions = transactions;
@@ -62,6 +67,53 @@ const CostSheet = () => {
     if (items.length === 0) return "-";
     if (items.length === 1) return items[0].items?.name || "Unknown";
     return `${items.length} items`;
+  };
+
+  const openEdit = (tx: any) => {
+    setEditingTx(tx);
+    setEditForm({
+      reference: tx.reference_number || "",
+      date: tx.transaction_date ? new Date(tx.transaction_date).toISOString().split("T")[0] : "",
+      customerSupplier: tx.customer_supplier_name || "",
+      contact: tx.customer_supplier_contact || "",
+      tinNo: tx.tin_no || tx.tinNo || "",
+      notes: tx.notes || "",
+    });
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTx) return;
+    setSubmitting(true);
+    try {
+      await txApi.update(editingTx.id, {
+        transactionDate: editForm.date,
+        referenceNumber: editForm.reference,
+        customerSupplierName: editForm.customerSupplier,
+        customerSupplierContact: editForm.contact || null,
+        tinNo: editForm.tinNo || null,
+        notes: editForm.notes || null,
+      });
+      toast({ title: "Success", description: "Transaction updated" });
+      setEditingTx(null);
+      fetchTransactions();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error updating transaction", description: err.message });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try {
+      await txApi.delete(deleteId);
+      toast({ title: "Success", description: "Transaction deleted and stock reversed" });
+      setDeleteId(null);
+      fetchTransactions();
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Error", description: err.message });
+    }
   };
 
   const generatePDF = (tx: any) => {
@@ -218,9 +270,7 @@ const CostSheet = () => {
                       const qty = (tx.items || []).reduce((s: number, li: any) => s + (li.quantity || 0), 0);
                       return (
                         <TableRow key={tx.id} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/transactions/${tx.id}`)}>
-                          <TableCell className="text-xs py-2">
-                            {new Date(tx.transaction_date).toLocaleDateString()}
-                          </TableCell>
+                          <TableCell className="text-xs py-2">{new Date(tx.transaction_date).toLocaleDateString()}</TableCell>
                           <TableCell className="font-mono text-xs py-2">{tx.reference_number}</TableCell>
                           <TableCell className="text-sm py-2 font-medium">{tx.customer_supplier_name || "-"}</TableCell>
                           <TableCell className="text-xs py-2">{tx.customer_supplier_contact || "-"}</TableCell>
@@ -234,9 +284,17 @@ const CostSheet = () => {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right py-2">
-                            <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); generatePDF(tx); }}>
-                              PDF
-                            </Button>
+                            <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="Edit" onClick={() => openEdit(tx)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="PDF" onClick={() => generatePDF(tx)}>
+                                <FileText className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" title="Delete" onClick={() => setDeleteId(tx.id)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -248,6 +306,46 @@ const CostSheet = () => {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={!!editingTx} onOpenChange={(open) => { if (!open) setEditingTx(null); }}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle className="text-lg">Edit Transaction</DialogTitle>
+            <DialogDescription>Update reference, client info, and notes</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-3">
+            <div className="space-y-1"><Label>Reference Number *</Label>
+              <Input value={editForm.reference} onChange={(e) => setEditForm({ ...editForm, reference: e.target.value })} required />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} required /></div>
+              <div className="space-y-1"><Label>Contact</Label><Input value={editForm.contact} onChange={(e) => setEditForm({ ...editForm, contact: e.target.value })} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>Client/Customer</Label><Input value={editForm.customerSupplier} onChange={(e) => setEditForm({ ...editForm, customerSupplier: e.target.value })} /></div>
+              <div className="space-y-1"><Label>TIN No</Label><Input value={editForm.tinNo} onChange={(e) => setEditForm({ ...editForm, tinNo: e.target.value })} placeholder="Tax ID" /></div>
+            </div>
+            <div className="space-y-1"><Label>Notes</Label><Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} rows={2} /></div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditingTx(null)}>Cancel</Button>
+              <Button type="submit" disabled={submitting}>{submitting ? "Updating..." : "Update"}</Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+            <AlertDialogDescription>This will reverse the stock changes and cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 };
