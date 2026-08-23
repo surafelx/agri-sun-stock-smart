@@ -261,8 +261,10 @@ const Transactions = () => {
 
   const filteredTxList = txList;
 
+  const isItemSpec = (n: string) => /\d+[x.\/]\d|\d+mm|\d+w\b|\d+kw|\d+ah|\d+v\b|dsc|dcp|dcm|spw|inverter|solar panel|battery|cable|pipe|hose|sheet|clamp|gasket|flange|fuse|reducer|connecter|control box|gutter|ridge|silicon|cutter|wire|peg|nut|bolt|screw|valve|pump|meter|steel|aluminum|hdpe|pvc|rolled metal|flash|ega|korkor|soldering|water filter|well casing|shs |rhs |gi /i.test(n);
+
   const uniqueSuppliers = Array.from(new Map([
-    ...txList.filter((tx) => tx.customer_supplier_name).map((tx) => [tx.customer_supplier_name, {
+    ...txList.filter((tx) => tx.customer_supplier_name && !isItemSpec(tx.customer_supplier_name)).map((tx) => [tx.customer_supplier_name, {
       name: tx.customer_supplier_name,
       contact: tx.customer_supplier_contact || "",
       tinNo: tx.tin_no || tx.tinNo || "",
