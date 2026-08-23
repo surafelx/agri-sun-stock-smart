@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 
 type TxType = 'purchase' | 'sale' | 'adjustment' | 'transfer';
 
-const emptyItem = () => ({ categoryId: "", subcategoryId: "", itemId: "", quantity: "", unitPrice: "" });
+const emptyItem = () => ({ categoryId: "", subcategoryId: "", itemId: "", quantity: "", unitPrice: "", purchaseRef: "" });
 
 const Transactions = () => {
   const navigate = useNavigate();
@@ -110,10 +110,13 @@ const Transactions = () => {
       if (lineItems.length === 0) { toast({ variant: "destructive", title: "Error", description: "Add at least one item" }); return; }
 
       const ref = formData.reference || `TRF-${Date.now()}`;
+      const finalRef = formData.type === 'transfer' && formData.items.some(i => i.purchaseRef) 
+        ? `${ref}/${formData.items.find(i => i.purchaseRef)?.purchaseRef || ''}`
+        : ref;
       await txApi.create({
         transactionType: formData.type,
         transactionDate: formData.date,
-        referenceNumber: ref,
+        referenceNumber: finalRef,
         customerSupplierName: formData.customerSupplier,
         customerSupplierContact: formData.contact || undefined,
         tinNo: formData.tinNo || undefined,
@@ -604,7 +607,7 @@ const Transactions = () => {
                   <p className="text-sm text-muted-foreground mb-3">No purchase history found for this item</p>
                   <Button variant="outline" size="sm" onClick={() => {
                     const newItems = [...itemPickerForm.items];
-                    newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(itemPickerSelected.quantity ?? ""), unitPrice: String(itemPickerSelected.cost_price || itemPickerSelected.unit_price || "") };
+                    newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(itemPickerSelected.quantity ?? ""), unitPrice: String(itemPickerSelected.cost_price || itemPickerSelected.unit_price || ""), purchaseRef: "" };
                     setFormData({ ...itemPickerForm, items: newItems });
                     setItemPickerOpen(false);
                     setItemPickerSelected(null);
@@ -628,7 +631,7 @@ const Transactions = () => {
                       {itemPickerStockCard.filter((mv) => mv.quantityIn > 0).map((mv, idx) => (
                         <TableRow key={mv.id || idx} className="cursor-pointer hover:bg-muted/50" onClick={() => {
                           const newItems = [...itemPickerForm.items];
-                          newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(mv.quantityIn), unitPrice: String(mv.unitPrice) };
+                          newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(mv.quantityIn), unitPrice: String(mv.unitPrice), purchaseRef: mv.reference || "" };
                           setFormData({ ...itemPickerForm, items: newItems });
                           setItemPickerOpen(false);
                           setItemPickerSelected(null);
