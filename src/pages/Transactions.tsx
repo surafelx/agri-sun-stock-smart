@@ -312,7 +312,7 @@ const Transactions = () => {
       tinNo: tx.tin_no || tx.tinNo || "",
     }]),
     ...suppliersList.map((s) => [s.name, s]),
-  ].map(([name, data]: [string, any]) => [name, { name, contact: data.contact || "", tinNo: data.tinNo || "" }])).values());
+  ].map(([name, data]: [string, any]) => [name, { id: data.id || data._id || null, name, contact: data.contact || "", tinNo: data.tinNo || "" }])).values());
 
   const renderItemRows = (formState: typeof formData, setFormState: (f: any) => void) => {
     return (
