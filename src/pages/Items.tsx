@@ -159,7 +159,7 @@ const Items = () => {
     setDialogOpen(true);
   };
 
-  const formatCurrency = (v: number) => "$" + v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatCurrency = (v: number) => v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   const filteredItems = itemsList.filter((item) => {
     const matchStatus = (() => {

@@ -130,7 +130,7 @@ const StockBalance = () => {
               <CardTitle className="text-sm font-medium">Total Value (Cost)</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent><div className="text-2xl font-bold">ETB {totalValue.toLocaleString()}</div><p className="text-xs text-muted-foreground">At cost price</p></CardContent>
+            <CardContent><div className="text-2xl font-bold">{totalValue.toLocaleString()}</div><p className="text-xs text-muted-foreground">At cost price</p></CardContent>
           </Card>
           <Card className="shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -138,7 +138,7 @@ const StockBalance = () => {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">ETB {balances.reduce((s, b) => s + (b.retailValue || 0), 0).toLocaleString()}</div>
+              <div className="text-2xl font-bold">{balances.reduce((s, b) => s + (b.retailValue || 0), 0).toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">At unit price</p>
             </CardContent>
           </Card>
@@ -308,8 +308,8 @@ const StockBalance = () => {
                           <TableCell className="text-right text-sm py-2 font-medium">
                             {b.quantity > 0 ? <span className="text-green-600">{b.quantity.toLocaleString()}</span> : <span className="text-red-600">0</span>}
                           </TableCell>
-                          <TableCell className="text-right text-sm py-2">ETB {(b.costPrice || 0).toFixed(2)}</TableCell>
-                          <TableCell className="text-right text-sm py-2 font-medium">ETB {(b.inventoryValue || 0).toLocaleString()}</TableCell>
+                            <TableCell className="text-right text-sm py-2">{(b.costPrice || 0).toFixed(2)}</TableCell>
+                            <TableCell className="text-right text-sm py-2 font-medium">{(b.inventoryValue || 0).toLocaleString()}</TableCell>
                           <TableCell className="py-2"><Badge variant={ss.variant} className="text-xs">{ss.status}</Badge></TableCell>
                           <TableCell className="text-right py-2">
                             <Button variant="ghost" size="sm" onClick={() => navigate(`/stock-card/${b.id}`)} className="h-7 text-xs">View Card</Button>

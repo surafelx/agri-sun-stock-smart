@@ -106,7 +106,7 @@ const TransferStockCard = () => {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-              <div><p className="text-muted-foreground text-xs">Cost Price</p><p className="font-semibold">ETB {item.cost_price}</p></div>
+              <div><p className="text-muted-foreground text-xs">Cost Price</p><p className="font-semibold">{item.cost_price}</p></div>
               <div><p className="text-muted-foreground text-xs">Total Qty Transferred Out</p><p className="font-semibold">{totalQtyOut}</p></div>
               <div>
                 <p className="text-muted-foreground text-xs">Current Balance</p>
@@ -160,8 +160,8 @@ const TransferStockCard = () => {
                           <TableCell className="py-2 text-xs">{tx.customer_supplier_name || '-'}</TableCell>
                           <TableCell className="py-2 text-xs text-muted-foreground max-w-[200px] truncate">{tx.notes || '-'}</TableCell>
                           <TableCell className="py-2 text-right text-xs font-medium">{lineItem?.quantity || 0}</TableCell>
-                          <TableCell className="py-2 text-right text-xs">ETB {lineItem?.unit_price?.toFixed(2) || '0.00'}</TableCell>
-                          <TableCell className="py-2 text-right text-xs font-semibold">ETB {lineItem?.total_price?.toFixed(2) || '0.00'}</TableCell>
+                          <TableCell className="py-2 text-right text-xs">{lineItem?.unit_price?.toFixed(2) || '0.00'}</TableCell>
+                          <TableCell className="py-2 text-right text-xs font-semibold">{lineItem?.total_price?.toFixed(2) || '0.00'}</TableCell>
                         </TableRow>
                       );
                     })}

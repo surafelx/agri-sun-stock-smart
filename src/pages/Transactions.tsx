@@ -256,13 +256,13 @@ const Transactions = () => {
       (tx.items || []).forEach((li: any) => {
         doc.text(li.items?.name || 'Unknown', 20, y);
         doc.text(String(li.quantity), 120, y);
-        doc.text(`ETB ${li.unit_price.toFixed(2)}`, 140, y);
-        doc.text(`ETB ${li.total_price.toFixed(2)}`, 170, y);
+        doc.text(`${li.unit_price.toFixed(2)}`, 140, y);
+        doc.text(`${li.total_price.toFixed(2)}`, 170, y);
         y += 10;
       });
       y += 10; doc.line(20, y, 190, y); y += 10;
       doc.setFontSize(12);
-      doc.text(`Total: ETB ${tx.total_amount?.toFixed(2)}`, 140, y);
+      doc.text(`Total: ${tx.total_amount?.toFixed(2)}`, 140, y);
       doc.save(`invoice-${tx.reference_number}.pdf`);
       toast({ title: "PDF generated" });
     } catch (err: any) {
@@ -497,7 +497,7 @@ const Transactions = () => {
                           </TableCell>
                           <TableCell className="text-sm py-2">{tx.customer_supplier_name}</TableCell>
                           <TableCell className="text-sm py-2">{new Date(tx.transaction_date).toLocaleDateString()}</TableCell>
-                          <TableCell className="text-right font-semibold text-sm py-2">ETB {tx.total_amount?.toLocaleString()}</TableCell>
+                          <TableCell className="text-right font-semibold text-sm py-2">{tx.total_amount?.toLocaleString()}</TableCell>
                           <TableCell className="text-right py-2">
                             <div className="flex justify-end gap-1">
                               <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); generatePDF(tx.id); }} className="h-7 w-7 p-0" title="PDF"><FileText className="h-3.5 w-3.5" /></Button>
@@ -628,7 +628,7 @@ const Transactions = () => {
                       <TableCell className="font-mono text-xs py-2">{tx.reference_number}</TableCell>
                       <TableCell className="text-sm py-2">{tx.customer_supplier_name}</TableCell>
                       <TableCell className="text-sm py-2">{new Date(tx.transaction_date).toLocaleDateString()}</TableCell>
-                      <TableCell className="text-right text-sm py-2 font-medium">ETB {tx.total_amount?.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-sm py-2 font-medium">{tx.total_amount?.toLocaleString()}</TableCell>
                       <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
                     </TableRow>
                   ));
@@ -691,7 +691,7 @@ const Transactions = () => {
                           <TableCell className="font-mono text-xs py-2">{mv.reference || '-'}</TableCell>
                           <TableCell className="text-xs py-2">{mv.customerSupplier || '-'}</TableCell>
                           <TableCell className="text-right text-xs py-2 font-medium">{mv.quantity ?? mv.quantityIn}</TableCell>
-                          <TableCell className="text-right text-xs py-2">ETB {mv.unitPrice?.toFixed(2)}</TableCell>
+                          <TableCell className="text-right text-xs py-2">{mv.unitPrice?.toFixed(2)}</TableCell>
                           <TableCell className="text-right text-xs py-2">{mv.remaining ?? mv.balance}</TableCell>
                           <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
                         </TableRow>
@@ -749,7 +749,7 @@ const Transactions = () => {
                           <TableCell className="font-mono text-sm py-2">{inv.sku}</TableCell>
                           <TableCell className="text-sm py-2">{inv.categories?.name || '-'}</TableCell>
                           <TableCell className="text-right text-sm py-2">{inv.quantity}</TableCell>
-                          <TableCell className="text-right text-sm py-2">ETB {(inv.cost_price || 0).toFixed(2)}</TableCell>
+                          <TableCell className="text-right text-sm py-2">{(inv.cost_price || 0).toFixed(2)}</TableCell>
                           <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
                         </TableRow>
                       ));
@@ -785,13 +785,13 @@ const Transactions = () => {
                   <div><span className="font-medium text-muted-foreground">Created:</span> <span className="ml-2">{viewTx.created_at ? new Date(viewTx.created_at).toLocaleString() : '-'}</span></div>
                 </div>
                 <div className="text-right space-y-1">
-                  <div className="text-lg font-bold">ETB {viewTx.total_amount?.toLocaleString()}</div>
+                  <div className="text-lg font-bold">{viewTx.total_amount?.toLocaleString()}</div>
                   <p className="text-xs text-muted-foreground">{viewTx.items?.length || 0} item(s)</p>
                   {viewTx.transaction_type === 'sale' && (
                     <div className="text-sm">
                       <span className="text-muted-foreground">Profit: </span>
                       <span className={`font-bold ${viewTx.items?.reduce((s: number, li: any) => s + (li.profit || 0), 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        ETB {viewTx.items?.reduce((s: number, li: any) => s + (li.profit || 0), 0).toLocaleString()}
+                        {viewTx.items?.reduce((s: number, li: any) => s + (li.profit || 0), 0).toLocaleString()}
                       </span>
                     </div>
                   )}
@@ -817,11 +817,11 @@ const Transactions = () => {
                           <TableCell className="text-sm py-2 font-medium">{li.items?.name || 'Unknown'}</TableCell>
                           <TableCell className="font-mono text-sm py-2">{li.items?.sku || 'N/A'}</TableCell>
                           <TableCell className="text-right text-sm py-2">{li.quantity}</TableCell>
-                          <TableCell className="text-right text-sm py-2">ETB {li.unit_price?.toFixed(2)}</TableCell>
-                          <TableCell className="text-right text-sm py-2 font-semibold">ETB {li.total_price?.toFixed(2)}</TableCell>
+                           <TableCell className="text-right text-sm py-2">{li.unit_price?.toFixed(2)}</TableCell>
+                           <TableCell className="text-right text-sm py-2 font-semibold">{li.total_price?.toFixed(2)}</TableCell>
                           {viewTx.transaction_type === 'sale' && (
                             <TableCell className="text-right text-sm py-2">
-                              <Badge variant={(li.profit || 0) >= 0 ? "default" : "destructive"}>ETB {(li.profit || 0).toFixed(2)}</Badge>
+                              <Badge variant={(li.profit || 0) >= 0 ? "default" : "destructive"}>{(li.profit || 0).toFixed(2)}</Badge>
                             </TableCell>
                           )}
                         </TableRow>

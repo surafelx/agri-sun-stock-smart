@@ -93,14 +93,14 @@ const CostSheet = () => {
       doc.text(li.items?.name || "Unknown", 20, y);
       doc.text(li.items?.sku || "-", 90, y);
       doc.text(String(li.quantity), 120, y);
-      doc.text(`ETB ${(li.unit_price || 0).toFixed(2)}`, 140, y);
-      doc.text(`ETB ${(li.total_price || 0).toFixed(2)}`, 170, y);
+      doc.text(`${(li.unit_price || 0).toFixed(2)}`, 140, y);
+      doc.text(`${(li.total_price || 0).toFixed(2)}`, 170, y);
       y += 7;
     }
     y += 5; doc.line(20, y, 190, y); y += 7;
     doc.setFontSize(11);
-    doc.text(`Total Cost: ETB ${group.totalCost.toLocaleString()}`, 20, y);
-    doc.text(`Total Revenue: ETB ${group.totalRevenue.toLocaleString()}`, 120, y);
+    doc.text(`Total Cost: ${group.totalCost.toLocaleString()}`, 20, y);
+    doc.text(`Total Revenue: ${group.totalRevenue.toLocaleString()}`, 120, y);
     doc.save(`cost-sheet-${group.ref}.pdf`);
     toast({ title: "PDF generated" });
   };
@@ -150,7 +150,7 @@ const CostSheet = () => {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">ETB {totalCost.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{totalCost.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">At cost price</p>
             </CardContent>
           </Card>
@@ -160,7 +160,7 @@ const CostSheet = () => {
               <TrendingUp className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">ETB {totalRevenue.toLocaleString()}</div>
+              <div className="text-2xl font-bold">{totalRevenue.toLocaleString()}</div>
               <p className="text-xs text-muted-foreground">At selling price</p>
             </CardContent>
           </Card>
@@ -228,8 +228,8 @@ const CostSheet = () => {
                             {group.type?.charAt(0).toUpperCase() + group.type?.slice(1)}
                           </Badge>
                           <div className="text-right text-sm">
-                            <div className="font-medium">ETB {group.totalRevenue.toLocaleString()}</div>
-                            <div className="text-xs text-muted-foreground">Cost: ETB {group.totalCost.toLocaleString()}</div>
+                            <div className="font-medium">{group.totalRevenue.toLocaleString()}</div>
+                            <div className="text-xs text-muted-foreground">Cost: {group.totalCost.toLocaleString()}</div>
                           </div>
                           <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="PDF" onClick={(e) => { e.stopPropagation(); generateGroupPDF(group); }}>
                             <FileText className="h-3.5 w-3.5" />
@@ -257,22 +257,22 @@ const CostSheet = () => {
                                     <TableCell className="font-mono text-xs py-1.5">{li.items?.sku || "-"}</TableCell>
                                     <TableCell className="text-xs py-1.5">{li.items?.categories?.name || "-"}</TableCell>
                                     <TableCell className="text-right text-xs py-1.5 font-medium">{li.quantity}</TableCell>
-                                    <TableCell className="text-right text-xs py-1.5">ETB {(li.unit_price || 0).toFixed(2)}</TableCell>
-                                    <TableCell className="text-right text-xs py-1.5 font-medium">ETB {(li.total_price || 0).toFixed(2)}</TableCell>
+                                     <TableCell className="text-right text-xs py-1.5">{(li.unit_price || 0).toFixed(2)}</TableCell>
+                                     <TableCell className="text-right text-xs py-1.5 font-medium">{(li.total_price || 0).toFixed(2)}</TableCell>
                                   </TableRow>
                                 ))}
                                 <TableRow className="bg-muted/50">
                                   <TableCell colSpan={3} className="text-xs font-medium py-1.5">Total ({group.items.length} items)</TableCell>
                                   <TableCell className="text-right text-xs font-medium py-1.5">{group.items.reduce((s: number, li: any) => s + (li.quantity || 0), 0)}</TableCell>
                                   <TableCell></TableCell>
-                                  <TableCell className="text-right text-xs font-bold py-1.5">ETB {group.totalCost.toLocaleString()}</TableCell>
+                                   <TableCell className="text-right text-xs font-bold py-1.5">{group.totalCost.toLocaleString()}</TableCell>
                                 </TableRow>
                               </TableBody>
                             </Table>
                           </div>
                           <div className="flex justify-end mt-2 gap-4 text-sm">
-                            <span className="text-muted-foreground">Revenue: <span className="font-bold text-foreground">ETB {group.totalRevenue.toLocaleString()}</span></span>
-                            <span className="text-muted-foreground">Profit: <span className={`font-bold ${(group.totalRevenue - group.totalCost) >= 0 ? 'text-green-600' : 'text-red-600'}`}>ETB {(group.totalRevenue - group.totalCost).toLocaleString()}</span></span>
+                            <span className="text-muted-foreground">Revenue: <span className="font-bold text-foreground">{group.totalRevenue.toLocaleString()}</span></span>
+                            <span className="text-muted-foreground">Profit: <span className={`font-bold ${(group.totalRevenue - group.totalCost) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{(group.totalRevenue - group.totalCost).toLocaleString()}</span></span>
                           </div>
                         </div>
                       )}

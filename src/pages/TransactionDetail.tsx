@@ -101,13 +101,13 @@ const TransactionDetail = () => {
     (transaction.items || []).forEach((li: any) => {
       doc.text(li.items?.name || 'Unknown', 20, y);
       doc.text(String(li.quantity), 120, y);
-      doc.text(`ETB ${li.unit_price?.toFixed(2)}`, 140, y);
-      doc.text(`ETB ${li.total_price?.toFixed(2)}`, 170, y);
+      doc.text(`${li.unit_price?.toFixed(2)}`, 140, y);
+      doc.text(`${li.total_price?.toFixed(2)}`, 170, y);
       y += 10;
     });
     y += 10; doc.line(20, y, 190, y); y += 10;
     doc.setFontSize(12);
-    doc.text(`Total: ETB ${transaction.total_amount?.toFixed(2)}`, 140, y);
+    doc.text(`Total: ${transaction.total_amount?.toFixed(2)}`, 140, y);
     doc.save(`invoice-${transaction.reference_number}.pdf`);
   };
 
@@ -175,12 +175,12 @@ const TransactionDetail = () => {
             <CardContent className="space-y-2">
               <div className="flex justify-between">
                 <span className="font-medium">Total Amount:</span>
-                <span className="text-lg font-bold">ETB {transaction.total_amount?.toLocaleString()}</span>
+                <span className="text-lg font-bold">{transaction.total_amount?.toLocaleString()}</span>
               </div>
               {transaction.transaction_type === 'sale' && (
                 <div className="flex justify-between">
                   <span className="font-medium">Total Profit:</span>
-                  <span className="text-lg font-bold text-green-600">ETB {totalProfit.toLocaleString()}</span>
+                  <span className="text-lg font-bold text-green-600">{totalProfit.toLocaleString()}</span>
                 </div>
               )}
               <div className="pt-4">
@@ -211,11 +211,11 @@ const TransactionDetail = () => {
                       <TableCell className="font-medium">{li.items?.name || 'Unknown'}</TableCell>
                       <TableCell className="font-mono text-sm">{li.items?.sku || 'N/A'}</TableCell>
                       <TableCell className="text-right">{li.quantity}</TableCell>
-                      <TableCell className="text-right">ETB {li.unit_price?.toFixed(2)}</TableCell>
-                      <TableCell className="text-right font-semibold">ETB {li.total_price?.toFixed(2)}</TableCell>
+                       <TableCell className="text-right">{li.unit_price?.toFixed(2)}</TableCell>
+                       <TableCell className="text-right font-semibold">{li.total_price?.toFixed(2)}</TableCell>
                       {transaction.transaction_type === 'sale' && (
                         <TableCell className="text-right">
-                          <Badge variant={(li.profit || 0) >= 0 ? "default" : "destructive"}>ETB {(li.profit || 0).toFixed(2)}</Badge>
+                          <Badge variant={(li.profit || 0) >= 0 ? "default" : "destructive"}>{(li.profit || 0).toFixed(2)}</Badge>
                         </TableCell>
                       )}
                     </TableRow>

@@ -64,7 +64,7 @@ const Dashboard = () => {
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-xl font-bold">ETB {(stats?.totalInventoryValue ?? 0).toLocaleString()}</div>
+              <div className="text-xl font-bold">{(stats?.totalInventoryValue ?? 0).toLocaleString()}</div>
               <p className="text-[10px] text-muted-foreground">At cost price</p>
             </CardContent>
           </Card>
@@ -86,7 +86,7 @@ const Dashboard = () => {
               <TrendingUp className="h-4 w-4 text-success" />
             </CardHeader>
             <CardContent className="pt-1">
-              <div className="text-xl font-bold">ETB {(stats?.monthlyRevenue ?? 0).toLocaleString()}</div>
+              <div className="text-xl font-bold">{(stats?.monthlyRevenue ?? 0).toLocaleString()}</div>
               <p className="text-[10px] text-muted-foreground">{stats?.monthlySaleCount ?? 0} sales this month</p>
             </CardContent>
           </Card>
@@ -96,7 +96,7 @@ const Dashboard = () => {
           <Card className="shadow-card">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Transaction Values</CardTitle>
-              <CardDescription className="text-xs">Monthly purchase vs sales vs transfers (ETB)</CardDescription>
+              <CardDescription className="text-xs">Monthly purchase vs sales vs transfers</CardDescription>
             </CardHeader>
             <CardContent className="pt-2">
               <ResponsiveContainer width="100%" height={250}>

@@ -89,7 +89,7 @@ const StockCard = () => {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-              <div><p className="text-muted-foreground text-xs">Cost Price</p><p className="font-semibold">ETB {item.cost_price}</p></div>
+              <div><p className="text-muted-foreground text-xs">Cost Price</p><p className="font-semibold">{item.cost_price}</p></div>
               <div><p className="text-muted-foreground text-xs">Total Movements</p><p className="font-semibold">{movements.length}</p></div>
               <div>
                 <p className="text-muted-foreground text-xs">Status</p>
@@ -139,17 +139,17 @@ const StockCard = () => {
                         </TableCell>
                         <TableCell className="py-2 font-mono text-xs">{mv.reference}</TableCell>
                         <TableCell className="py-2 text-right text-xs">
-                          {mv.quantityIn > 0 ? `${mv.quantityIn} @ ETB ${mv.unitPrice}` : '-'}
+                          {mv.quantityIn > 0 ? `${mv.quantityIn} @ ${mv.unitPrice}` : '-'}
                         </TableCell>
                         <TableCell className="py-2 text-right text-xs">
-                          {mv.quantityOut > 0 ? `${mv.quantityOut} @ ETB ${mv.unitPrice}` : '-'}
+                          {mv.quantityOut > 0 ? `${mv.quantityOut} @ ${mv.unitPrice}` : '-'}
                         </TableCell>
                         <TableCell className="py-2 text-right font-bold text-sm">{mv.balance}</TableCell>
                         <TableCell className="py-2 text-right text-xs">
                           {mv.remaining != null ? mv.remaining : mv.quantityIn > 0 ? mv.quantityIn : '-'}
                         </TableCell>
                         <TableCell className="py-2 text-right text-xs">
-                          ETB {(mv.valueIn - mv.valueOut).toFixed(2)}
+                          {(mv.valueIn - mv.valueOut).toFixed(2)}
                         </TableCell>
                       </TableRow>
                     ))}

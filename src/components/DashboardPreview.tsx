@@ -5,7 +5,7 @@ import { Package, DollarSign, AlertTriangle, TrendingUp, BarChart3, ArrowDownLef
 
 const mockStats = [
   { label: "Total Items", value: "128", sub: "Unique products", icon: Package, color: "text-primary" },
-  { label: "Inventory Value", value: "12.4M", sub: "ETB", icon: DollarSign, color: "text-blue-500" },
+  { label: "Inventory Value", value: "12.4M", sub: "", icon: DollarSign, color: "text-blue-500" },
   { label: "Low Stock", value: "7", sub: "Need reorder", icon: AlertTriangle, color: "text-amber-500" },
   { label: "Transactions", value: "1,247", sub: "All time", icon: TrendingUp, color: "text-emerald-500" },
 ];
@@ -96,7 +96,7 @@ export function DashboardPreview() {
           <div className="grid grid-cols-2 gap-2">
             {/* Bar chart */}
             <div className="bg-white rounded-lg p-2 border border-neutral-100 shadow-sm">
-              <div className="text-[9px] font-semibold text-neutral-700 mb-1">Purchase vs Sales (ETB)</div>
+              <div className="text-[9px] font-semibold text-neutral-700 mb-1">Purchase vs Sales</div>
               {/* Simple SVG bar chart */}
               <div className="flex items-end gap-1 h-16">
                 {mockChartData.map(({ name, purchases, sales }) => {
