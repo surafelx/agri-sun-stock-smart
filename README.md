@@ -1,73 +1,86 @@
-# Welcome to your Lovable project
+# AgriSun inventory
 
-## Project info
+Web frontend for the AgriSun Ethiopia inventory system: stock items, stock movements, suppliers and clients, and cost sheets.
 
-**URL**: https://lovable.dev/projects/41db23d0-f5eb-44f2-99e8-5023087a83de
+Live app: https://agrisun-inventory.vercel.app
 
-## How can I edit this code?
+## What it does
 
-There are several ways of editing your application.
+- Sign in and sign up with email and password. Pages other than `/auth` redirect to the sign-in page when no user is logged in.
+- Dashboard with total items, total inventory value, low-stock count, monthly revenue and sale count, plus charts of sales and transfers over time.
+- Stock items (`/items`): create, edit and delete items with SKU, category, subcategory, unit of measure, cost price, unit price and low-stock threshold.
+- Stock card per item (`/stock-card/:itemId`) showing every movement and the running balance, and a transfer stock card (`/transfer-card/:itemId`).
+- Stock balance (`/stock-balance`): current quantity and value per item.
+- Transactions (`/transactions`): record purchases, sales, adjustments and transfers with several line items, a reference number, supplier or client name, contact and TIN. Transactions can be exported to Excel, and each one can be downloaded as a PDF.
+- Transaction detail page for viewing, editing and deleting a single transaction.
+- Cost sheet (`/cost-sheet`): transactions grouped by base reference number with an expandable item ledger and PDF export per group.
+- Excel import (`/import`): upload a workbook where each sheet is a product and its transaction history.
+- Admin (`/admin`): manage users and roles (`admin`, `inventory_clerk`, `accountant`), categories and subcategories, and suppliers/clients. The user list is loaded only for admins.
 
-**Use Lovable**
+The code has no separate customer records or installation tracking. Customers and clients appear as the counterparty on sale and transfer transactions, and as supplier records in the Admin page.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/41db23d0-f5eb-44f2-99e8-5023087a83de) and start prompting.
+## Data
 
-Changes made via Lovable will be committed automatically to this repo.
+All data goes through a REST API in a separate repository, `agri-sun-backend` (Node.js, Express, MongoDB). The client is in `src/lib/api.ts`:
 
-**Use your preferred IDE**
+- The base URL comes from `VITE_API_URL` (default `http://localhost:5000/api`).
+- Login returns a JWT, which is stored in `localStorage` under `agrisun_token` and sent as a `Bearer` token. A `401` response clears the token and sends the user to `/auth`.
+- Endpoints used: `/auth`, `/users`, `/categories` (with subcategories), `/items` (including `/low-stock`, `/:id/stock-card` and `/import`), `/transactions`, `/dashboard`, `/stock-balance` (including `/recalculate`), `/activity-log` and `/suppliers`.
+- `api.ts` converts MongoDB documents (`_id`, camelCase fields) to the `id` and snake_case fields the pages expect.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Leftovers from earlier versions are still in the repo and are not used by the running app:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- `supabase/` (config and SQL migrations) and `src/integrations/supabase/`. The app used Supabase before it moved to the Express/MongoDB API. `INVENTORY_DATA_README.md` describes one of those SQL migrations.
+- `scripts/import-excel.js` (`npm run import`) still writes to Supabase.
+- `server/routes/` and `server/migrations/` hold SQLite-style Express routes that import a `utils/initDb.js` file which does not exist in this repo.
 
-Follow these steps:
+## Tech stack
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+React 18, TypeScript, Vite, React Router, TanStack Query, Tailwind CSS, shadcn/ui (Radix UI), Recharts, jsPDF and SheetJS (`xlsx`).
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Project structure
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+src/pages/             Route pages (Dashboard, Items, StockCard, TransferStockCard,
+                       StockBalance, Transactions, TransactionDetail, CostSheet,
+                       ImportPage, Admin, Auth)
+src/lib/api.ts         REST client for the agri-sun-backend API
+src/contexts/          AuthContext (JWT session and current user)
+src/components/        Layout (navigation, auth redirect) and shadcn/ui components,
+                       including the Excel uploader
+public/                SPA fallback files (_redirects, .htaccess, 404.html)
+supabase/, server/, scripts/   Legacy code, see above
 ```
 
-**Edit a file directly in GitHub**
+## Run it locally
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Start the `agri-sun-backend` API first (by default the frontend expects it at `http://localhost:5000/api`).
 
-**Use GitHub Codespaces**
+```sh
+npm install
+npm run dev        # Vite dev server on port 8080
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Other scripts:
 
-## What technologies are used for this project?
+```sh
+npm run build      # production build to dist/
+npm run build:dev  # build in development mode
+npm run preview    # serve the production build
+npm run lint       # ESLint
+```
 
-This project is built with:
+## Environment variables
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- `VITE_API_URL`: base URL of the agri-sun-backend API, including the `/api` path.
 
-## How can I deploy this project?
+Legacy code only:
 
-Simply open [Lovable](https://lovable.dev/projects/41db23d0-f5eb-44f2-99e8-5023087a83de) and click on Share -> Publish.
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`: read by `src/integrations/supabase/client.ts`, which nothing imports.
+- `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`: read by `scripts/import-excel.js`.
 
-## Can I connect a custom domain to my Lovable project?
+There is no `.env.example`.
 
-Yes, you can!
+## Deployment
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+`vercel.json` rewrites all paths to `index.html` for client-side routing on Vercel. `public/_redirects` and `public/.htaccess` do the same for Netlify-style and Apache hosting.
