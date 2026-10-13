@@ -44,7 +44,7 @@ const Layout = ({ children }: LayoutProps) => {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/30 sticky top-0 z-50">
+      <header className="print:hidden border-b bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-card/30 sticky top-0 z-50">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 bg-gradient-to-br from-primary to-primary-glow rounded-lg flex items-center justify-center shadow-glow">
@@ -94,7 +94,7 @@ const Layout = ({ children }: LayoutProps) => {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-4">{children}</main>
+      <main className="container mx-auto px-4 py-4 print:max-w-none print:p-0">{children}</main>
     </div>
   );
 };

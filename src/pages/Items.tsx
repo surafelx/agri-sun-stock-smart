@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { items as itemsApi, categories as categoriesApi, normalizeItem, normalizeCategory, normalizeSubcategory, stockBalance } from "@/lib/api";
 import Layout from "@/components/Layout";
+import { PrintHeader, PrintButton } from "@/components/PrintHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -195,7 +196,11 @@ const Items = () => {
   return (
     <Layout>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <PrintHeader
+          title={viewMode === "items" ? "Stock List" : "Stock Overview"}
+          subtitle={viewMode === "items" ? `${filteredItems.length} items` : `${filteredBalance.length} items • Total quantity: ${totalBalance.toLocaleString()} • Total value: ${formatCurrency(totalValue)}`}
+        />
+        <div className="flex items-center justify-between print:hidden">
           <div>
             <h2 className="text-2xl font-bold tracking-tight">{viewMode === "items" ? "Stock Items" : "Stock Overview"}</h2>
             <p className="text-sm text-muted-foreground">{viewMode === "items" ? "Manage inventory" : "View balances and values"}</p>
@@ -203,6 +208,7 @@ const Items = () => {
           <div className="flex gap-2">
             <Button variant={viewMode === "items" ? "default" : "outline"} size="sm" onClick={() => setViewMode("items")}>Items</Button>
             <Button variant={viewMode === "stock" ? "default" : "outline"} size="sm" onClick={() => setViewMode("stock")}>Overview</Button>
+            <PrintButton />
             <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1.5 h-4 w-4" /> Add Item</Button></DialogTrigger>
               <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -258,7 +264,7 @@ const Items = () => {
           </div>
         </div>
 
-        <Card className="shadow-card">
+        <Card className="shadow-card print:hidden">
           <CardContent className="pt-4">
             <div className="flex flex-col md:flex-row gap-4">
               <div className="relative flex-1">
@@ -303,7 +309,7 @@ const Items = () => {
         </Card>
 
         {viewMode === "stock" && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 print:hidden">
             <Card className="shadow-card"><CardContent className="pt-4"><p className="text-sm text-muted-foreground">Total Items</p><p className="text-2xl font-bold">{filteredBalance.length}</p></CardContent></Card>
             <Card className="shadow-card"><CardContent className="pt-4"><p className="text-sm text-muted-foreground">Total Quantity</p><p className="text-2xl font-bold">{totalBalance.toLocaleString()}</p></CardContent></Card>
             <Card className="shadow-card"><CardContent className="pt-4"><p className="text-sm text-muted-foreground">Total Value</p><p className="text-2xl font-bold">{formatCurrency(totalValue)}</p></CardContent></Card>
@@ -317,7 +323,7 @@ const Items = () => {
           </div>
         ) : viewMode === "items" ? (
           <Card className="shadow-card">
-            <CardHeader className="pb-3"><CardTitle className="text-base">Inventory Items</CardTitle><CardDescription className="text-sm">{filteredItems.length} items</CardDescription></CardHeader>
+            <CardHeader className="pb-3 print:hidden"><CardTitle className="text-base">Inventory Items</CardTitle><CardDescription className="text-sm">{filteredItems.length} items</CardDescription></CardHeader>
             <CardContent className="pt-0">
               {filteredItems.length === 0 ? (
                 <div className="text-center py-8"><Package className="mx-auto h-10 w-10 text-muted-foreground mb-3" /><h3 className="text-base font-semibold mb-1">No items</h3></div>
@@ -331,9 +337,9 @@ const Items = () => {
                         <TableHead className="h-9 text-xs">Category</TableHead>
                         <TableHead className="h-9 text-xs">Subcategory</TableHead>
                         <TableHead className="h-9 text-xs">UOM</TableHead>
-                        <TableHead className="h-9 text-xs text-right">Actions</TableHead>
+                        <TableHead className="h-9 text-xs text-right print:hidden">Actions</TableHead>
                       </TableRow>
-                      <TableRow>
+                      <TableRow className="print:hidden">
                         <TableHead className="py-1 px-1">
                           <Input placeholder="Filter SKU..." value={colSearch.sku} onChange={(e) => setColSearch({ ...colSearch, sku: e.target.value })} className="h-7 text-xs" />
                         </TableHead>
@@ -362,7 +368,7 @@ const Items = () => {
                           <TableCell className="text-sm py-2">{item.categories?.name || "N/A"}</TableCell>
                           <TableCell className="text-sm py-2">{item.subcategories?.name || "N/A"}</TableCell>
                           <TableCell className="text-sm py-2">{item.uom || "N/A"}</TableCell>
-                          <TableCell className="text-right py-2">
+                          <TableCell className="text-right py-2 print:hidden">
                             <div className="flex justify-end gap-1">
                               <Button variant="ghost" size="sm" onClick={() => navigate(`/stock-card/${item.id}`)} className="h-7 w-7 p-0" title="Stock Card"><FileText className="h-3.5 w-3.5" /></Button>
                               <Button variant="ghost" size="sm" onClick={() => navigate(`/transfer-card/${item.id}`)} className="h-7 w-7 p-0" title="Transfer Cost Sheet"><ArrowRightLeft className="h-3.5 w-3.5" /></Button>
@@ -380,7 +386,7 @@ const Items = () => {
           </Card>
         ) : (
           <Card className="shadow-card">
-            <CardHeader className="pb-3"><CardTitle className="text-base">Stock Overview</CardTitle><CardDescription className="text-sm">{filteredBalance.length} items</CardDescription></CardHeader>
+            <CardHeader className="pb-3 print:hidden"><CardTitle className="text-base">Stock Overview</CardTitle><CardDescription className="text-sm">{filteredBalance.length} items</CardDescription></CardHeader>
             <CardContent className="pt-0">
               {filteredBalance.length === 0 ? (
                 <div className="text-center py-8"><Package className="mx-auto h-10 w-10 text-muted-foreground mb-3" /><h3 className="text-base font-semibold mb-1">No stock data</h3></div>

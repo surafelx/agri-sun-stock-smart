@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { stockBalance as sbApi } from "@/lib/api";
 import Layout from "@/components/Layout";
+import { PrintHeader, PrintButton } from "@/components/PrintHeader";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -112,12 +113,16 @@ const StockBalance = () => {
   return (
     <Layout>
       <div className="space-y-6">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Stock Balance Sheet</h2>
-          <p className="text-muted-foreground">Complete inventory balance and valuation overview</p>
+        <PrintHeader title="Stock Balance Sheet" subtitle={`${sortedBalances.length} items • Total value (cost): ${totalValue.toLocaleString()}`} />
+        <div className="flex items-center justify-between print:hidden">
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Stock Balance Sheet</h2>
+            <p className="text-muted-foreground">Complete inventory balance and valuation overview</p>
+          </div>
+          <PrintButton />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 print:grid-cols-4 print:gap-2">
           <Card className="shadow-card">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Items</CardTitle>
@@ -154,7 +159,7 @@ const StockBalance = () => {
           </Card>
         </div>
 
-        <Card className="shadow-card">
+        <Card className="shadow-card print:hidden">
           <CardContent className="pt-4">
             <div className="flex flex-col md:flex-row gap-3">
               <div className="relative flex-1">
@@ -187,7 +192,7 @@ const StockBalance = () => {
         </Card>
 
         <Card className="shadow-card">
-          <CardHeader>
+          <CardHeader className="print:hidden">
             <CardTitle className="text-lg">Stock Balance Summary</CardTitle>
             <CardDescription>Current quantity and value for all inventory items</CardDescription>
           </CardHeader>
@@ -231,9 +236,9 @@ const StockBalance = () => {
                         <div className="flex items-center justify-end">Inventory Value {getSortIndicator('inventoryValue')}</div>
                       </TableHead>
                       <TableHead className="h-9 text-xs">Status</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Actions</TableHead>
+                      <TableHead className="h-9 text-xs text-right print:hidden">Actions</TableHead>
                     </TableRow>
-                    <TableRow>
+                    <TableRow className="print:hidden">
                       <TableHead className="h-8 p-1">
                         <Input
                           placeholder="Filter SKU"
@@ -311,13 +316,20 @@ const StockBalance = () => {
                             <TableCell className="text-right text-sm py-2">{(b.costPrice || 0).toFixed(2)}</TableCell>
                             <TableCell className="text-right text-sm py-2 font-medium">{(b.inventoryValue || 0).toLocaleString()}</TableCell>
                           <TableCell className="py-2"><Badge variant={ss.variant} className="text-xs">{ss.status}</Badge></TableCell>
-                          <TableCell className="text-right py-2">
+                          <TableCell className="text-right py-2 print:hidden">
                             <Button variant="ghost" size="sm" onClick={() => navigate(`/stock-card/${b.id}`)} className="h-7 text-xs">View Card</Button>
                           </TableCell>
                         </TableRow>
                       );
                     })}
                   </TableBody>
+                  <tfoot className="hidden print:table-footer-group">
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-2 text-right font-bold text-sm">Total</TableCell>
+                      <TableCell className="py-2 text-right font-bold text-sm">{sortedBalances.reduce((s, b) => s + (b.inventoryValue || 0), 0).toLocaleString()}</TableCell>
+                      <TableCell />
+                    </TableRow>
+                  </tfoot>
                 </Table>
               </div>
             )}

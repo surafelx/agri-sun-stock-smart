@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { items as itemsApi, normalizeItem } from "@/lib/api";
 import Layout from "@/components/Layout";
+import { PrintHeader, PrintButton } from "@/components/PrintHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -62,7 +63,8 @@ const StockCard = () => {
   return (
     <Layout>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <PrintHeader title="Stock Card" />
+        <div className="flex items-center justify-between print:hidden">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => navigate('/items')}><ArrowLeft className="w-4 h-4 mr-1" />Back</Button>
             <div>
@@ -70,6 +72,7 @@ const StockCard = () => {
               <p className="text-sm text-muted-foreground">Inventory ledger and balance tracking</p>
             </div>
           </div>
+          <PrintButton />
         </div>
 
         <Card className="shadow-card">
@@ -102,7 +105,7 @@ const StockCard = () => {
         </Card>
 
         <Card className="shadow-card">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 print:hidden">
             <CardTitle className="text-base">Stock Ledger</CardTitle>
             <CardDescription className="text-sm">Detailed inventory movements and balance tracking</CardDescription>
           </CardHeader>

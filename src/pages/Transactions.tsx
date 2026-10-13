@@ -16,14 +16,25 @@ import { useNavigate } from "react-router-dom";
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 
 type TxType = 'purchase' | 'sale' | 'adjustment' | 'transfer';
 
 const emptyItem = () => ({ categoryId: "", subcategoryId: "", itemId: "", quantity: "", unitPrice: "", purchaseRef: "" });
 
+const toFormItems = (tx: any) => (tx.items || []).map((li: any) => ({
+  categoryId: li.items?.category_id || "",
+  subcategoryId: li.items?.subcategory_id || "",
+  itemId: li.item_id || li.items?.id || "",
+  quantity: String(li.quantity ?? ""),
+  unitPrice: String(li.unit_price ?? ""),
+  purchaseRef: "",
+}));
+
 const Transactions = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
   const [txList, setTxList] = useState<any[]>([]);
   const [itemsList, setItemsList] = useState<any[]>([]);
   const [categoriesList, setCategoriesList] = useState<any[]>([]);
@@ -183,15 +194,27 @@ const Transactions = () => {
     if (!editingTx) return;
     setSubmitting(true);
     try {
+      let lineItems: any[] | undefined;
+      let reference = editFormData.reference;
+      if (canEditLines) {
+        lineItems = editFormData.items.filter((i) => i.itemId && i.quantity).map((i) => ({
+          item: i.itemId, quantity: parseFloat(i.quantity), unitPrice: parseFloat(i.unitPrice) || 0,
+        }));
+        if (lineItems.length === 0) { toast({ variant: "destructive", title: "Error", description: "Add at least one item" }); return; }
+        // Newly picked purchases replace the purchase refs after the slash, as on create
+        const purchaseRefs = editFormData.items.filter((i) => i.purchaseRef).map((i) => i.purchaseRef);
+        if (purchaseRefs.length > 0) reference = `${reference.split('/')[0]}/${purchaseRefs.join(',')}`;
+      }
       await txApi.update(editingTx.id, {
         transactionDate: editFormData.date,
-        referenceNumber: editFormData.reference,
+        referenceNumber: reference,
         customerSupplierName: editFormData.customerSupplier,
         customerSupplierContact: editFormData.contact || null,
         tinNo: editFormData.tinNo || null,
         notes: editFormData.notes || null,
+        ...(lineItems && { items: lineItems }),
       });
-      toast({ title: "Success", description: "Transaction updated" });
+      toast({ title: "Success", description: lineItems ? "Transfer updated and stock adjusted" : "Transaction updated" });
       setEditDialogOpen(false);
       setEditingTx(null);
       fetchAll();
@@ -213,6 +236,9 @@ const Transactions = () => {
     }
   };
 
+  // Rewriting lines moves stock, so the API only lets admins do it
+  const canEditLines = editingTx?.transaction_type === 'transfer' && user?.role === 'admin';
+
   const openEditDialog = (tx: any) => {
     setEditingTx(tx);
     setEditFormData({
@@ -223,9 +249,15 @@ const Transactions = () => {
       notes: tx.notes || "",
       date: tx.transaction_date ? new Date(tx.transaction_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       tinNo: tx.tin_no || tx.tinNo || "",
-      items: [emptyItem()],
+      items: tx.items?.length ? toFormItems(tx) : [emptyItem()],
     });
     setEditDialogOpen(true);
+  };
+
+  // The item picker serves both the create and the edit dialog
+  const applyPickedItems = (newItems: any[]) => {
+    if (editDialogOpen) setEditFormData({ ...itemPickerForm, items: newItems });
+    else setFormData({ ...itemPickerForm, items: newItems });
   };
 
   const updateFormItem = (form: typeof formData, index: number, field: string, value: string) => {
@@ -530,8 +562,17 @@ const Transactions = () => {
       </AlertDialog>
 
       <Dialog open={editDialogOpen} onOpenChange={(open) => { setEditDialogOpen(open); if (!open) setEditingTx(null); }}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader><DialogTitle className="text-lg">Edit Transaction Metadata</DialogTitle><DialogDescription className="text-sm">Update reference, contact, and notes (line items cannot be changed — delete and recreate instead)</DialogDescription></DialogHeader>
+        <DialogContent className={canEditLines ? "max-w-5xl max-h-[90vh] overflow-y-auto" : "max-w-xl"}>
+          <DialogHeader>
+            <DialogTitle className="text-lg">{canEditLines ? "Edit Transfer" : "Edit Transaction Metadata"}</DialogTitle>
+            <DialogDescription className="text-sm">
+              {canEditLines
+                ? "Update details and line items. The old quantities go back into stock and the new ones are taken out."
+                : editingTx?.transaction_type === 'transfer'
+                  ? "Update reference, contact, and notes (only an admin can change the line items)"
+                  : "Update reference, contact, and notes (line items cannot be changed — delete and recreate instead)"}
+            </DialogDescription>
+          </DialogHeader>
           <form onSubmit={handleEditSubmit} className="space-y-3">
             <div className="space-y-1"><Label>Reference Number *</Label>
               <div className="flex gap-2">
@@ -550,6 +591,12 @@ const Transactions = () => {
             <div className="space-y-1"><Label>Customer/Supplier</Label><Input value={editFormData.customerSupplier} onChange={(e) => setEditFormData({ ...editFormData, customerSupplier: e.target.value })} /></div>
             <div className="space-y-1"><Label>TIN No</Label><Input value={editFormData.tinNo} onChange={(e) => setEditFormData({ ...editFormData, tinNo: e.target.value })} placeholder="Tax ID" /></div>
             <div className="space-y-1"><Label>Notes</Label><Textarea value={editFormData.notes} onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })} rows={2} /></div>
+            {canEditLines && (
+              <div className="border-t pt-4">
+                <h4 className="font-semibold mb-3">Line Items</h4>
+                {renderItemRows(editFormData, setEditFormData)}
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
               <Button type="submit" disabled={submitting}>{submitting ? "Updating..." : "Update"}</Button>
@@ -658,7 +705,7 @@ const Transactions = () => {
                   <Button variant="outline" size="sm" onClick={() => {
                     const newItems = [...itemPickerForm.items];
                     newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(itemPickerSelected.quantity ?? ""), unitPrice: String(itemPickerSelected.cost_price || itemPickerSelected.unit_price || ""), purchaseRef: "" };
-                    setFormData({ ...itemPickerForm, items: newItems });
+                    applyPickedItems(newItems);
                     setItemPickerOpen(false);
                     setItemPickerSelected(null);
                   }}>Select without purchase reference</Button>
@@ -682,7 +729,7 @@ const Transactions = () => {
                         <TableRow key={mv.id || idx} className="cursor-pointer hover:bg-muted/50" onClick={() => {
                           const newItems = [...itemPickerForm.items];
                           newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(mv.remaining ?? mv.quantity ?? mv.quantityIn), unitPrice: String(mv.unitPrice), purchaseRef: mv.reference || "" };
-                          setFormData({ ...itemPickerForm, items: newItems });
+                          applyPickedItems(newItems);
                           setItemPickerOpen(false);
                           setItemPickerSelected(null);
                           setItemPickerStockCard([]);

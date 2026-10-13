@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { items as itemsApi, transactions as txApi, normalizeItem, normalizeTransaction } from "@/lib/api";
 import Layout from "@/components/Layout";
+import { PrintHeader, PrintButton } from "@/components/PrintHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -76,7 +77,8 @@ const TransferStockCard = () => {
   return (
     <Layout>
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <PrintHeader title="Transfer Card Cost Sheet" subtitle={searchTerm ? `Filtered by "${searchTerm}"` : undefined} />
+        <div className="flex items-center justify-between print:hidden">
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" onClick={() => navigate('/items')}><ArrowLeft className="w-4 h-4 mr-1" />Back</Button>
             <div>
@@ -84,6 +86,7 @@ const TransferStockCard = () => {
               <p className="text-sm text-muted-foreground">Transfer history and cost tracking for this item</p>
             </div>
           </div>
+          <PrintButton />
         </div>
 
         <Card className="shadow-card">
@@ -122,7 +125,7 @@ const TransferStockCard = () => {
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div><CardTitle className="text-base">Transfer Logs</CardTitle><CardDescription className="text-sm">All transfer transactions involving this item</CardDescription></div>
-              <div className="relative w-64">
+              <div className="relative w-64 print:hidden">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input placeholder="Search reference, supplier..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-1.5 text-sm border rounded-md bg-background" />
               </div>
@@ -158,7 +161,7 @@ const TransferStockCard = () => {
                           </TableCell>
                           <TableCell className="py-2 font-mono text-xs">{tx.reference_number}</TableCell>
                           <TableCell className="py-2 text-xs">{tx.customer_supplier_name || '-'}</TableCell>
-                          <TableCell className="py-2 text-xs text-muted-foreground max-w-[200px] truncate">{tx.notes || '-'}</TableCell>
+                          <TableCell className="py-2 text-xs text-muted-foreground max-w-[200px] truncate print:max-w-none print:whitespace-normal">{tx.notes || '-'}</TableCell>
                           <TableCell className="py-2 text-right text-xs font-medium">{lineItem?.quantity || 0}</TableCell>
                           <TableCell className="py-2 text-right text-xs">{lineItem?.unit_price?.toFixed(2) || '0.00'}</TableCell>
                           <TableCell className="py-2 text-right text-xs font-semibold">{lineItem?.total_price?.toFixed(2) || '0.00'}</TableCell>

@@ -109,3 +109,41 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Printing: pages call window.print(); anything marked print:hidden (nav, filters, actions) drops out */
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  body {
+    background: white !important;
+    color: black !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .shadow-card {
+    box-shadow: none !important;
+  }
+
+  /* Let wide tables spill onto paper instead of being clipped by scroll containers */
+  .overflow-x-auto,
+  .overflow-hidden,
+  .overflow-auto {
+    overflow: visible !important;
+  }
+
+  table {
+    font-size: 10px;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+}
