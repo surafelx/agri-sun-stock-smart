@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { stockBalance as sbApi } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { PrintHeader, PrintButton } from "@/components/PrintHeader";
+import { exportSheet } from "@/lib/exportSheet";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Package, TrendingUp, DollarSign, AlertTriangle, Plus, Minus, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Package, TrendingUp, DollarSign, AlertTriangle, Plus, Minus, Search, ArrowUpDown, ArrowUp, ArrowDown, Download } from "lucide-react";
 
 const StockBalance = () => {
   const navigate = useNavigate();
@@ -100,6 +101,19 @@ const StockBalance = () => {
     return { status: "In Stock", variant: "default" as const };
   };
 
+  const handleExport = () => {
+    const rows: Record<string, string | number>[] = sortedBalances.map((b: any) => ({
+      SKU: b.sku, Name: b.name, Category: b.category?.name || "", UOM: b.uom || "",
+      Quantity: b.quantity, "Cost Price": Number((b.costPrice || 0).toFixed(2)),
+      "Inventory Value": Number((b.inventoryValue || 0).toFixed(2)), Status: getStockStatus(b).status,
+    }));
+    rows.push({
+      SKU: "", Name: "TOTAL", Category: "", UOM: "", Quantity: sortedBalances.reduce((s, b) => s + (b.quantity || 0), 0),
+      "Cost Price": "", "Inventory Value": Number(sortedBalances.reduce((s, b) => s + (b.inventoryValue || 0), 0).toFixed(2)), Status: "",
+    });
+    exportSheet("stock-balance", "Stock Balance", rows);
+  };
+
   if (loading) {
     return (
       <Layout>
@@ -119,7 +133,10 @@ const StockBalance = () => {
             <h2 className="text-3xl font-bold tracking-tight">Stock Balance Sheet</h2>
             <p className="text-muted-foreground">Complete inventory balance and valuation overview</p>
           </div>
-          <PrintButton />
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={handleExport} disabled={sortedBalances.length === 0}><Download className="mr-1.5 h-4 w-4" />Export Excel</Button>
+            <PrintButton />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 print:grid-cols-4 print:gap-2">
@@ -210,8 +227,8 @@ const StockBalance = () => {
                 <p className="text-sm text-muted-foreground">Try adjusting your search or filters</p>
               </div>
             ) : (
-              <div className="border rounded-lg overflow-x-auto">
-                <Table>
+              <div className="border rounded-lg overflow-x-auto print:border-0">
+                <Table className="print-sheet">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="h-9 text-xs cursor-pointer hover:bg-muted" onClick={() => handleSort('sku')}>

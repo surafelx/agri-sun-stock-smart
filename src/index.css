@@ -146,4 +146,62 @@ All colors MUST be HSL.
   tr {
     break-inside: avoid;
   }
+
+  /* Spreadsheet look: a grid on every cell, shaded header, numbered rows */
+  .print-sheet {
+    border-collapse: collapse;
+    counter-reset: sheet-row;
+  }
+
+  .print-sheet th,
+  .print-sheet td,
+  .print-sheet tr::before {
+    border: 1px solid #9ca3af !important;
+    padding: 3px 6px !important;
+    height: auto !important;
+    color: black !important;
+  }
+
+  .print-sheet thead tr,
+  .print-sheet tfoot tr {
+    background: #e5e7eb !important;
+  }
+
+  .print-sheet th {
+    font-weight: 700;
+  }
+
+  .print-sheet tr::before {
+    display: table-cell;
+    text-align: right;
+    width: 2.5em;
+    background: #e5e7eb;
+    font-weight: 700;
+  }
+
+  .print-sheet thead tr::before {
+    content: "#";
+  }
+
+  .print-sheet tbody tr {
+    counter-increment: sheet-row;
+  }
+
+  .print-sheet tbody tr::before {
+    content: counter(sheet-row);
+  }
+
+  .print-sheet tfoot tr::before {
+    content: "";
+  }
+
+  /* Status badges and name links print as plain text */
+  .print-sheet td * {
+    background: transparent !important;
+    border: 0 !important;
+    padding: 0 !important;
+    color: black !important;
+    font-size: inherit !important;
+    text-decoration: none !important;
+  }
 }

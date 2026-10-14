@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { items as itemsApi, categories as categoriesApi, normalizeItem, normalizeCategory, normalizeSubcategory, stockBalance } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { PrintHeader, PrintButton } from "@/components/PrintHeader";
+import { exportSheet } from "@/lib/exportSheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Edit, Trash2, FileText, Search, Filter, ArrowRightLeft } from "lucide-react";
+import { Plus, Package, Edit, Trash2, FileText, Search, Filter, ArrowRightLeft, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Items = () => {
@@ -193,6 +194,23 @@ const Items = () => {
   const totalValue = filteredBalance.reduce((s, i) => s + (i.inventoryValue || 0), 0);
   const lowStockCount = filteredBalance.filter((i) => i.isLowStock).length;
 
+  const handleExport = () => {
+    if (viewMode === "items") {
+      exportSheet("stock-list", "Stock List", filteredItems.map((item) => ({
+        SKU: item.sku, Name: item.name, Category: item.categories?.name || "", Subcategory: item.subcategories?.name || "",
+        UOM: item.uom || "", Quantity: item.quantity ?? 0,
+      })));
+      return;
+    }
+    const rows: Record<string, string | number>[] = filteredBalance.map((item: any) => ({
+      SKU: item.sku, Name: item.name, Category: item.category?.name || "", Balance: item.quantity || 0,
+      "Unit Cost": Number((item.costPrice || 0).toFixed(2)), "Total Value": Number((item.inventoryValue || 0).toFixed(2)),
+      Status: item.quantity === 0 ? "Out of Stock" : item.isLowStock ? "Low Stock" : "In Stock",
+    }));
+    rows.push({ SKU: "", Name: "TOTAL", Category: "", Balance: totalBalance, "Unit Cost": "", "Total Value": Number(totalValue.toFixed(2)), Status: "" });
+    exportSheet("stock-overview", "Stock Overview", rows);
+  };
+
   return (
     <Layout>
       <div className="space-y-4">
@@ -208,6 +226,7 @@ const Items = () => {
           <div className="flex gap-2">
             <Button variant={viewMode === "items" ? "default" : "outline"} size="sm" onClick={() => setViewMode("items")}>Items</Button>
             <Button variant={viewMode === "stock" ? "default" : "outline"} size="sm" onClick={() => setViewMode("stock")}>Overview</Button>
+            <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1.5 h-4 w-4" />Export Excel</Button>
             <PrintButton />
             <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1.5 h-4 w-4" /> Add Item</Button></DialogTrigger>
@@ -328,8 +347,8 @@ const Items = () => {
               {filteredItems.length === 0 ? (
                 <div className="text-center py-8"><Package className="mx-auto h-10 w-10 text-muted-foreground mb-3" /><h3 className="text-base font-semibold mb-1">No items</h3></div>
               ) : (
-                <div className="border rounded-lg">
-                  <Table>
+                <div className="border rounded-lg print:border-0">
+                  <Table className="print-sheet">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="h-9 text-xs">SKU</TableHead>
@@ -391,8 +410,8 @@ const Items = () => {
               {filteredBalance.length === 0 ? (
                 <div className="text-center py-8"><Package className="mx-auto h-10 w-10 text-muted-foreground mb-3" /><h3 className="text-base font-semibold mb-1">No stock data</h3></div>
               ) : (
-                <div className="border rounded-lg overflow-x-auto">
-                  <Table>
+                <div className="border rounded-lg overflow-x-auto print:border-0">
+                  <Table className="print-sheet">
                     <TableHeader>
                       <TableRow>
                         <TableHead className="h-9 text-xs">SKU</TableHead>
@@ -423,6 +442,15 @@ const Items = () => {
                         </TableRow>
                       ))}
                     </TableBody>
+                    <tfoot className="hidden print:table-footer-group">
+                      <TableRow>
+                        <TableCell colSpan={3} className="py-2 text-right font-bold">Total</TableCell>
+                        <TableCell className="py-2 text-right font-bold">{totalBalance.toLocaleString()}</TableCell>
+                        <TableCell />
+                        <TableCell className="py-2 text-right font-bold">{formatCurrency(totalValue)}</TableCell>
+                        <TableCell />
+                      </TableRow>
+                    </tfoot>
                   </Table>
                 </div>
               )}
