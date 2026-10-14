@@ -4,6 +4,7 @@ import { items as itemsApi, categories as categoriesApi, normalizeItem, normaliz
 import Layout from "@/components/Layout";
 import { PrintHeader, PrintButton } from "@/components/PrintHeader";
 import { exportSheet } from "@/lib/exportSheet";
+import { exportStockLedger } from "@/lib/exportLedger";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Package, Edit, Trash2, FileText, Search, Filter, ArrowRightLeft, Download } from "lucide-react";
+import { Plus, Package, Edit, Trash2, FileText, Search, Filter, ArrowRightLeft, Download, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const Items = () => {
@@ -194,6 +195,20 @@ const Items = () => {
   const totalValue = filteredBalance.reduce((s, i) => s + (i.inventoryValue || 0), 0);
   const lowStockCount = filteredBalance.filter((i) => i.isLowStock).length;
 
+  const [ledgerExporting, setLedgerExporting] = useState(false);
+  const handleExportLedger = async () => {
+    setLedgerExporting(true);
+    try {
+      const ids = viewMode === "items" ? filteredItems.map((i) => i.id) : filteredBalance.map((b: any) => b.id);
+      const { items, sheets } = await exportStockLedger("stock-ledger", ids);
+      toast({ title: "Ledger exported", description: `${sheets} item sheets (${items} items in the summary)` });
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Export failed", description: err.message });
+    } finally {
+      setLedgerExporting(false);
+    }
+  };
+
   const handleExport = () => {
     if (viewMode === "items") {
       exportSheet("stock-list", "Stock List", filteredItems.map((item) => ({
@@ -227,6 +242,7 @@ const Items = () => {
             <Button variant={viewMode === "items" ? "default" : "outline"} size="sm" onClick={() => setViewMode("items")}>Items</Button>
             <Button variant={viewMode === "stock" ? "default" : "outline"} size="sm" onClick={() => setViewMode("stock")}>Overview</Button>
             <Button variant="outline" size="sm" onClick={handleExport}><Download className="mr-1.5 h-4 w-4" />Export Excel</Button>
+            <Button variant="outline" size="sm" onClick={handleExportLedger} disabled={ledgerExporting}><BookOpen className="mr-1.5 h-4 w-4" />{ledgerExporting ? "Exporting..." : "Export Ledger"}</Button>
             <PrintButton />
             <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) resetForm(); }}>
               <DialogTrigger asChild><Button size="sm"><Plus className="mr-1.5 h-4 w-4" /> Add Item</Button></DialogTrigger>

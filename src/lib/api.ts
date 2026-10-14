@@ -193,6 +193,9 @@ export const items = {
   stockCard: (id: string) =>
     request<{ item: any; movements: any[]; currentBalance: number }>(`/items/${id}/stock-card`),
 
+  stockLedger: () =>
+    request<{ ledgers: { item: any; movements: any[]; currentBalance: number }[] }>('/items/stock-ledger'),
+
   create: (body: any) =>
     request<{ item: any }>('/items', { method: 'POST', body: JSON.stringify(body) }),
 
