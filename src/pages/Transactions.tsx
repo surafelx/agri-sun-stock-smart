@@ -28,7 +28,7 @@ const toFormItems = (tx: any) => (tx.items || []).map((li: any) => ({
   itemId: li.item_id || li.items?.id || "",
   quantity: String(li.quantity ?? ""),
   unitPrice: String(li.unit_price ?? ""),
-  purchaseRef: "",
+  purchaseRef: li.purchaseRef || "",
 }));
 
 const Transactions = () => {
@@ -159,7 +159,7 @@ const Transactions = () => {
     setSubmitting(true);
     try {
       const lineItems = formData.items.filter((i) => i.itemId && i.quantity).map((i) => ({
-        item: i.itemId, quantity: parseFloat(i.quantity), unitPrice: parseFloat(i.unitPrice) || 0,
+        item: i.itemId, quantity: parseFloat(i.quantity), unitPrice: parseFloat(i.unitPrice) || 0, purchaseRef: i.purchaseRef || undefined,
       }));
       if (lineItems.length === 0) { toast({ variant: "destructive", title: "Error", description: "Add at least one item" }); return; }
 
@@ -198,7 +198,7 @@ const Transactions = () => {
       let reference = editFormData.reference;
       if (canEditLines) {
         lineItems = editFormData.items.filter((i) => i.itemId && i.quantity).map((i) => ({
-          item: i.itemId, quantity: parseFloat(i.quantity), unitPrice: parseFloat(i.unitPrice) || 0,
+          item: i.itemId, quantity: parseFloat(i.quantity), unitPrice: parseFloat(i.unitPrice) || 0, purchaseRef: i.purchaseRef || undefined,
         }));
         if (lineItems.length === 0) { toast({ variant: "destructive", title: "Error", description: "Add at least one item" }); return; }
         // Newly picked purchases replace the purchase refs after the slash, as on create

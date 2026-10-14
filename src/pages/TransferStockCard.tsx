@@ -38,6 +38,9 @@ const TransferStockCard = () => {
     }
   };
 
+  // One row per line: a transfer can take this item from several purchases
+  const lineRows = (tx: any) => (tx.items || []).filter((li: any) => li.item_id === itemId);
+
   const filteredTransfers = transfers.filter((tx) => {
     if (!searchTerm) return true;
     const t = searchTerm.toLowerCase();
@@ -47,7 +50,7 @@ const TransferStockCard = () => {
   });
 
   const totalQtyOut = transfers.reduce((s, tx) => {
-    return s + (tx.items || []).reduce((ss: number, li: any) => ss + (li.quantity || 0), 0);
+    return s + lineRows(tx).reduce((ss: number, li: any) => ss + (li.quantity || 0), 0);
   }, 0);
 
   if (loading) {
@@ -152,14 +155,13 @@ const TransferStockCard = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredTransfers.map((tx) => {
-                      const lineItem = (tx.items || []).find((li: any) => li.item_id === itemId);
+                    {filteredTransfers.flatMap((tx) => lineRows(tx).map((lineItem: any, idx: number) => {
                       return (
-                        <TableRow key={tx.id}>
+                        <TableRow key={`${tx.id}-${idx}`}>
                           <TableCell className="py-2 text-xs">
                             {new Date(tx.transaction_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
                           </TableCell>
-                          <TableCell className="py-2 font-mono text-xs">{tx.reference_number}</TableCell>
+                          <TableCell className="py-2 font-mono text-xs">{tx.reference_number}{lineItem.purchaseRef && <span className="block text-muted-foreground">from {lineItem.purchaseRef}</span>}</TableCell>
                           <TableCell className="py-2 text-xs">{tx.customer_supplier_name || '-'}</TableCell>
                           <TableCell className="py-2 text-xs text-muted-foreground max-w-[200px] truncate print:max-w-none print:whitespace-normal">{tx.notes || '-'}</TableCell>
                           <TableCell className="py-2 text-right text-xs font-medium">{lineItem?.quantity || 0}</TableCell>
@@ -167,7 +169,7 @@ const TransferStockCard = () => {
                           <TableCell className="py-2 text-right text-xs font-semibold">{lineItem?.total_price?.toFixed(2) || '0.00'}</TableCell>
                         </TableRow>
                       );
-                    })}
+                    }))}
                   </TableBody>
                 </Table>
               </div>
