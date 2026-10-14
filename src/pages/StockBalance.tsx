@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { stockBalance as sbApi } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { PrintHeader, PrintButton } from "@/components/PrintHeader";
-import { exportSheet } from "@/lib/exportSheet";
-import { exportStockLedger } from "@/lib/exportLedger";
+import ExportDialog from "@/components/ExportDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Package, TrendingUp, DollarSign, AlertTriangle, Plus, Minus, Search, ArrowUpDown, ArrowUp, ArrowDown, Download, BookOpen } from "lucide-react";
+import { Package, TrendingUp, DollarSign, AlertTriangle, Plus, Minus, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 
 const StockBalance = () => {
   const navigate = useNavigate();
@@ -24,7 +23,6 @@ const StockBalance = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [colSearch, setColSearch] = useState({ sku: "", name: "", category: "", uom: "", quantity: "", costPrice: "", inventoryValue: "" });
-  const [ledgerExporting, setLedgerExporting] = useState(false);
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
   useEffect(() => {
@@ -103,31 +101,6 @@ const StockBalance = () => {
     return { status: "In Stock", variant: "default" as const };
   };
 
-  const handleExport = () => {
-    const rows: Record<string, string | number>[] = sortedBalances.map((b: any) => ({
-      SKU: b.sku, Name: b.name, Category: b.category?.name || "", UOM: b.uom || "",
-      Quantity: b.quantity, "Cost Price": Number((b.costPrice || 0).toFixed(2)),
-      "Inventory Value": Number((b.inventoryValue || 0).toFixed(2)), Status: getStockStatus(b).status,
-    }));
-    rows.push({
-      SKU: "", Name: "TOTAL", Category: "", UOM: "", Quantity: sortedBalances.reduce((s, b) => s + (b.quantity || 0), 0),
-      "Cost Price": "", "Inventory Value": Number(sortedBalances.reduce((s, b) => s + (b.inventoryValue || 0), 0).toFixed(2)), Status: "",
-    });
-    exportSheet("stock-balance", "Stock Balance", rows);
-  };
-
-  const handleExportLedger = async () => {
-    setLedgerExporting(true);
-    try {
-      const { items, sheets } = await exportStockLedger("stock-ledger", sortedBalances.map((b: any) => b.id));
-      toast({ title: "Ledger exported", description: `${sheets} item sheets (${items} items in the summary)` });
-    } catch (err: any) {
-      toast({ variant: "destructive", title: "Export failed", description: err.message });
-    } finally {
-      setLedgerExporting(false);
-    }
-  };
-
   if (loading) {
     return (
       <Layout>
@@ -148,8 +121,7 @@ const StockBalance = () => {
             <p className="text-muted-foreground">Complete inventory balance and valuation overview</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={handleExport} disabled={sortedBalances.length === 0}><Download className="mr-1.5 h-4 w-4" />Export Excel</Button>
-            <Button variant="outline" size="sm" onClick={handleExportLedger} disabled={ledgerExporting || sortedBalances.length === 0}><BookOpen className="mr-1.5 h-4 w-4" />{ledgerExporting ? "Exporting..." : "Export Ledger"}</Button>
+            <ExportDialog itemIds={sortedBalances.map((b: any) => String(b.id))} />
             <PrintButton />
           </div>
         </div>
