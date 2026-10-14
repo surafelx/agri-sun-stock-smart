@@ -356,6 +356,7 @@ const Items = () => {
                         <TableHead className="h-9 text-xs">Category</TableHead>
                         <TableHead className="h-9 text-xs">Subcategory</TableHead>
                         <TableHead className="h-9 text-xs">UOM</TableHead>
+                        <TableHead className="h-9 text-xs text-right">Balance</TableHead>
                         <TableHead className="h-9 text-xs text-right print:hidden">Actions</TableHead>
                       </TableRow>
                       <TableRow className="print:hidden">
@@ -375,6 +376,7 @@ const Items = () => {
                           <Input placeholder="Filter UOM..." value={colSearch.uom} onChange={(e) => setColSearch({ ...colSearch, uom: e.target.value })} className="h-7 text-xs" />
                         </TableHead>
                         <TableHead />
+                        <TableHead />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -387,6 +389,7 @@ const Items = () => {
                           <TableCell className="text-sm py-2">{item.categories?.name || "N/A"}</TableCell>
                           <TableCell className="text-sm py-2">{item.subcategories?.name || "N/A"}</TableCell>
                           <TableCell className="text-sm py-2">{item.uom || "N/A"}</TableCell>
+                          <TableCell className="text-right text-sm py-2 font-medium">{(item.quantity ?? 0).toLocaleString()}</TableCell>
                           <TableCell className="text-right py-2 print:hidden">
                             <div className="flex justify-end gap-1">
                               <Button variant="ghost" size="sm" onClick={() => navigate(`/stock-card/${item.id}`)} className="h-7 w-7 p-0" title="Stock Card"><FileText className="h-3.5 w-3.5" /></Button>

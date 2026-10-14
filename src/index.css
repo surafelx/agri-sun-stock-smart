@@ -171,6 +171,11 @@ All colors MUST be HSL.
     font-weight: 700;
   }
 
+  /* Sort arrows mean nothing on paper */
+  .print-sheet th svg {
+    display: none;
+  }
+
   .print-sheet tr::before {
     display: table-cell;
     text-align: right;

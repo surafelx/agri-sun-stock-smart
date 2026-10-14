@@ -92,7 +92,7 @@ const StockCard = () => {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-              <div><p className="text-muted-foreground text-xs">Cost Price</p><p className="font-semibold">{item.cost_price}</p></div>
+              <div><p className="text-muted-foreground text-xs">Cost Price</p><p className="font-semibold">{Number(item.cost_price || 0).toFixed(2)}</p></div>
               <div><p className="text-muted-foreground text-xs">Total Movements</p><p className="font-semibold">{movements.length}</p></div>
               <div>
                 <p className="text-muted-foreground text-xs">Status</p>

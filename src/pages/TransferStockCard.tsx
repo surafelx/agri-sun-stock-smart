@@ -112,7 +112,7 @@ const TransferStockCard = () => {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-              <div><p className="text-muted-foreground text-xs">Cost Price</p><p className="font-semibold">{item.cost_price}</p></div>
+              <div><p className="text-muted-foreground text-xs">Cost Price</p><p className="font-semibold">{Number(item.cost_price || 0).toFixed(2)}</p></div>
               <div><p className="text-muted-foreground text-xs">Total Qty Transferred Out</p><p className="font-semibold">{totalQtyOut}</p></div>
               <div>
                 <p className="text-muted-foreground text-xs">Current Balance</p>
