@@ -1,4 +1,5 @@
-import * as XLSX from "xlsx";
+// The styling fork of SheetJS: same API, but it writes cell styles (borders, fills, bold)
+import * as XLSX from "xlsx-js-style";
 import { items as itemsApi } from "@/lib/api";
 
 export type ExportLayout = "summary" | "per-item" | "single-sheet";
@@ -33,6 +34,46 @@ const sheetName = (raw: string, used: Set<string>) => {
   used.add(name.toLowerCase());
   return name;
 };
+
+// Look of the sheets: shaded bold headers, thin borders on every table cell,
+// and a grey band between items on the single-sheet layout
+type RowKind = "title" | "meta" | "blank" | "header" | "data" | "total" | "separator";
+const THIN = { style: "thin", color: { rgb: "A6A6A6" } };
+const GRID = { top: THIN, bottom: THIN, left: THIN, right: THIN };
+const ROW_STYLES: Record<RowKind, any> = {
+  title: { font: { bold: true, sz: 14 } },
+  meta: { font: { color: { rgb: "595959" } } },
+  blank: {},
+  header: { font: { bold: true }, fill: { patternType: "solid", fgColor: { rgb: "DDEBF7" } }, border: GRID, alignment: { vertical: "center" } },
+  data: { border: GRID },
+  total: { font: { bold: true }, fill: { patternType: "solid", fgColor: { rgb: "F2F2F2" } }, border: GRID },
+  separator: { fill: { patternType: "solid", fgColor: { rgb: "D9D9D9" } } },
+};
+const QTY = "General";
+const MONEY = "#,##0.00";
+const DATE = "dd-mmm-yyyy";
+
+// Builds a sheet from rows plus what each row is, styling every cell of the table width
+// (empty ones too, so borders and bands run unbroken). numFmts maps column -> number format.
+function styledSheet(aoa: any[][], kinds: RowKind[], width: number, numFmts: Record<number, string>, cols: number[]) {
+  const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true, dateNF: DATE });
+  kinds.forEach((kind, r) => {
+    const isTable = kind !== "title" && kind !== "meta" && kind !== "blank";
+    for (let c = 0; c < (isTable ? width : aoa[r]?.length || 0); c++) {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      // Outside tables, leave gaps empty so long text can overflow into them
+      if (!ws[ref] && !isTable) continue;
+      const cell = ws[ref] || (ws[ref] = { t: "s", v: "" });
+      const style = { ...ROW_STYLES[kind] };
+      if (cell.t === "d") style.numFmt = DATE;
+      else if (cell.t === "n" && numFmts[c] && kind !== "header") style.numFmt = numFmts[c];
+      cell.s = style;
+    }
+  });
+  ws["!ref"] = XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: width - 1 } });
+  ws["!cols"] = cols.map((wch) => ({ wch }));
+  return ws;
+}
 
 const MOVEMENT_HEADER = ["Date", "Type", "Reference", "Customer / Supplier", "From Purchase", "In", "Out", "Unit Price", "Value", "Balance"];
 
@@ -88,16 +129,22 @@ export async function exportStock(opts: StockExportOptions) {
   const wb = XLSX.utils.book_new();
   const used = new Set<string>(["summary"]);
   const detailSheets: [string, XLSX.WorkSheet][] = [];
+  // Movement columns: Date, Type, Reference, Customer, From Purchase, In, Out, Unit Price, Value, Balance
+  const movementFmts = { 5: QTY, 6: QTY, 7: MONEY, 8: MONEY, 9: QTY };
+  const openingRow = (r: any) => [opts.from ? new Date(`${opts.from}T00:00:00Z`) : "", "Opening balance", "", "", "", "", "", "", "", r.opening];
+  const closingRow = (r: any) => [opts.to ? new Date(`${opts.to}T00:00:00Z`) : "", "Closing balance", "", "", "", "", "", "", "", r.closing];
 
   // Summary: reconciles as Opening + Purchased - Sold - Transferred + Adjusted = Closing
   const summaryHeader = ["No.", "SKU", "Item", "Category", "Subcategory", "UOM", "Opening", "Purchased", "Sold", "Transferred", "Adjusted", "Closing", "Cost Price", "Value at Cost"];
+  if (opts.layout === "per-item") summaryHeader.push("Sheet");
   const summary: any[][] = [
     ["Agrisun Ethiopia — Stock Summary"],
     [`Period: ${period}`],
     [`Exported ${new Date().toLocaleString()}`],
     [],
-    opts.layout === "per-item" ? [...summaryHeader, "Sheet"] : summaryHeader,
+    summaryHeader,
   ];
+  const summaryKinds: RowKind[] = ["title", "meta", "meta", "blank", "header"];
   const sheetLinks: [number, string][] = [];
 
   rows.forEach((r: any, idx: number) => {
@@ -113,46 +160,62 @@ export async function exportStock(opts: StockExportOptions) {
         const aoa: any[][] = [
           [item.name],
           [`SKU: ${item.sku}`, `Category: ${item.category?.name || "-"}`, `UOM: ${item.uom || "-"}`],
-          [`Period: ${period}`, `Types: ${typeLabel}`],
+          [`Period: ${period}`, null, null, `Types: ${typeLabel}`], // gaps let the period text run across
           [],
           MOVEMENT_HEADER,
-          ...(hasPeriod ? [[opts.from ? new Date(`${opts.from}T00:00:00Z`) : "", "Opening balance", "", "", "", "", "", "", "", r.opening]] : []),
+          ...(hasPeriod ? [openingRow(r)] : []),
           ...r.listed.map((m: any) => movementRow(m, showBalance)),
-          ["", "Closing balance", "", "", "", "", "", "", "", r.closing],
+          closingRow(r),
         ];
-        const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true, dateNF: "dd-mmm-yyyy" });
-        ws["!cols"] = [12, 15, 24, 24, 16, 9, 9, 11, 12, 10].map((wch) => ({ wch }));
-        detailSheets.push([name, ws]);
+        const kinds: RowKind[] = ["title", "meta", "meta", "blank", "header", ...aoa.slice(5).map((): RowKind => "data")];
+        detailSheets.push([name, styledSheet(aoa, kinds, MOVEMENT_HEADER.length, movementFmts, [12, 15, 24, 24, 16, 9, 9, 11, 12, 10])]);
       } else {
         line.push("No transactions");
       }
     }
     summary.push(line);
+    summaryKinds.push("data");
   });
 
-  const totals = [6, 7, 8, 9, 10, 11, 13].map((c) => round2(summary.slice(5).reduce((s, l) => s + (Number(l[c]) || 0), 0)));
+  const totals = [6, 7, 8, 9, 10, 11, 13].map((c) => round2(summary.slice(5).reduce((sum, l) => sum + (Number(l[c]) || 0), 0)));
   summary.push(["", "", "TOTAL", "", "", "", ...totals.slice(0, 6), "", totals[6]]);
+  summaryKinds.push("total");
 
-  const summaryWs = XLSX.utils.aoa_to_sheet(summary);
-  summaryWs["!cols"] = [5, 14, 32, 16, 16, 7, 10, 10, 10, 11, 10, 10, 11, 14, 32].map((wch) => ({ wch }));
+  const summaryWs = styledSheet(summary, summaryKinds, summaryHeader.length,
+    { 6: QTY, 7: QTY, 8: QTY, 9: QTY, 10: QTY, 11: QTY, 12: MONEY, 13: MONEY },
+    [5, 14, 32, 16, 16, 7, 10, 10, 10, 11, 10, 10, 11, 14, 32]);
   for (const [r, name] of sheetLinks) {
     const cell = summaryWs[XLSX.utils.encode_cell({ r, c: 14 })];
-    if (cell) cell.l = { Target: `#'${name.replace(/'/g, "''")}'!A1`, Tooltip: "Open sheet" };
+    if (cell) {
+      cell.l = { Target: `#'${name.replace(/'/g, "''")}'!A1`, Tooltip: "Open sheet" };
+      cell.s = { ...cell.s, font: { color: { rgb: "0563C1" }, underline: true } };
+    }
   }
   XLSX.utils.book_append_sheet(wb, summaryWs, "Summary");
 
   if (opts.layout === "single-sheet") {
-    // Every item's movements on one sheet, item by item, ready for Excel's filter buttons
-    const aoa: any[][] = [["SKU", "Item", ...MOVEMENT_HEADER]];
+    // Every item on one sheet as its own block: header, transactions, closing balance, then a grey band
+    const header = ["SKU", "Item", ...MOVEMENT_HEADER];
+    const aoa: any[][] = [];
+    const kinds: RowKind[] = [];
     for (const r of rows) {
       if (!r.listed.length && !(hasPeriod && r.opening)) continue;
-      if (hasPeriod) aoa.push([r.item.sku, r.item.name, opts.from ? new Date(`${opts.from}T00:00:00Z`) : "", "Opening balance", "", "", "", "", "", "", "", r.opening]);
-      for (const m of r.listed) aoa.push([r.item.sku, r.item.name, ...movementRow(m, showBalance)]);
-      aoa.push([r.item.sku, r.item.name, opts.to ? new Date(`${opts.to}T00:00:00Z`) : "", "Closing balance", "", "", "", "", "", "", "", r.closing]);
+      if (aoa.length) { aoa.push([]); kinds.push("separator"); }
+      const block = [
+        header,
+        ...(hasPeriod ? [openingRow(r)] : []),
+        ...r.listed.map((m: any) => movementRow(m, showBalance)),
+        closingRow(r),
+      ];
+      block.forEach((row, i) => {
+        aoa.push(i === 0 ? row : [r.item.sku, r.item.name, ...row]);
+        kinds.push(i === 0 ? "header" : "data");
+      });
     }
-    const ws = XLSX.utils.aoa_to_sheet(aoa, { cellDates: true, dateNF: "dd-mmm-yyyy" });
-    ws["!cols"] = [14, 28, 12, 15, 24, 24, 16, 9, 9, 11, 12, 10].map((wch) => ({ wch }));
-    ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: 11 } }) };
+    if (!aoa.length) { aoa.push(header); kinds.push("header"); }
+    const fmts = Object.fromEntries(Object.entries(movementFmts).map(([c, f]) => [Number(c) + 2, f]));
+    const ws = styledSheet(aoa, kinds, header.length, fmts, [14, 28, 12, 15, 24, 24, 16, 9, 9, 11, 12, 10]);
+    ws["!autofilter"] = { ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: header.length - 1 } }) };
     detailSheets.push(["All Transactions", ws]);
   }
 
