@@ -7,15 +7,17 @@ All colors MUST be HSL.
 */
 
 @layer base {
+  /* Neutrals follow Celerus Pay: white surfaces on a warm off-white canvas, hairline borders,
+     crisp corners. Agrisun green stays the one accent. */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 20 14.3% 4.1%;
+    --background: 40 14% 96%;
+    --foreground: 240 6% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 20 14.3% 4.1%;
+    --card-foreground: 240 6% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 20 14.3% 4.1%;
+    --popover-foreground: 240 6% 10%;
 
     /* Green primary color */
     --primary: 142 76% 36%;
@@ -26,20 +28,22 @@ All colors MUST be HSL.
     --secondary: 142 76% 36%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 60 4.8% 95.9%;
-    --muted-foreground: 25 5.3% 44.7%;
+    /* Sunken surfaces (table headers) and secondary text */
+    --muted: 40 23% 97%;
+    --muted-foreground: 240 4% 46%;
 
-    --accent: 142 76% 36%;
-    --accent-foreground: 0 0% 100%;
+    /* Hover and highlighted rows in menus and ghost buttons: a warm grey, not the accent */
+    --accent: 40 9% 94%;
+    --accent-foreground: 240 6% 10%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 20 5.9% 90%;
-    --input: 20 5.9% 90%;
+    --border: 40 11% 89%;
+    --input: 40 11% 86%;
     --ring: 142 76% 36%;
 
-    --radius: 0.75rem;
+    --radius: 0.625rem;
 
     /* Gradients */
     --gradient-primary: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 45%));
@@ -47,7 +51,7 @@ All colors MUST be HSL.
 
     /* Shadows */
     --shadow-glow: 0 10px 40px -10px hsl(142 76% 36% / 0.3);
-    --shadow-card: 0 4px 6px -1px hsl(20 14.3% 4.1% / 0.1);
+    --shadow-card: 0 1px 1px rgb(9 9 11 / 0.03);
 
     --chart-1: 142 76% 36%;
     --chart-2: 142 76% 36%;
@@ -106,7 +110,24 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-feature-settings: "cv11", "ss01", "ss03";
+  }
+
+  /* Page titles and panel names in the display face */
+  h1,
+  h2,
+  h3 {
+    @apply font-display;
+    letter-spacing: -0.015em;
+  }
+
+  /* Figures in Geist Mono: right-aligned table cells and stat values */
+  td.text-right,
+  th.text-right,
+  div:is(.text-xl, .text-2xl, .text-3xl):is(.font-bold, .font-semibold) {
+    @apply font-mono;
+    font-variant-numeric: tabular-nums;
   }
 }
 
