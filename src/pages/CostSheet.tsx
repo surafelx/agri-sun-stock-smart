@@ -1,19 +1,39 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { transactions as txApi, normalizeTransaction } from "@/lib/api";
 import Layout from "@/components/Layout";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import PageHeader from "@/components/app/PageHeader";
+import StatCard from "@/components/app/StatCard";
+import { TxTypeBadge } from "@/components/app/Badges";
+import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Search, ArrowRightLeft, TrendingUp, DollarSign, Package, FileText, ChevronDown, ChevronRight } from "lucide-react";
+import { Search, Hash, Users, Wallet, TrendingUp, FileText, ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import { costSheetPdf } from "@/lib/invoicePdf";
+import { formatDate, formatMoney, formatQty, orDash } from "@/lib/format";
+
+interface CostGroup {
+  ref: string;
+  fullRefs: Set<string>;
+  txs: any[];
+  client: string;
+  date: string;
+  type: string;
+  totalCost: number;
+  totalRevenue: number;
+  items: any[];
+}
+
+// Cost and amount are the same figure for most transfers; only show both when they differ
+const differs = (a: number, b: number) => Math.abs(a - b) >= 0.005;
+
+// What a line cost us: its value less the profit recorded on it. A sale's unit price is the
+// selling price, so value alone would make cost equal revenue; transfers carry no profit.
+const lineCost = (li: any) => (li.unit_price || 0) * (li.quantity || 0) - (li.profit || 0);
 
 const CostSheet = () => {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const [transactions, setTransactions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +67,7 @@ const CostSheet = () => {
     }
   };
 
-  const grouped = transactions.reduce((acc, tx) => {
+  const grouped = transactions.reduce<Record<string, CostGroup>>((acc, tx) => {
     const fullRef = tx.reference_number || "No Reference";
     const ref = fullRef.split('/')[0];
     if (!acc[ref]) acc[ref] = { ref, fullRefs: new Set<string>(), txs: [], client: tx.customer_supplier_name, date: tx.transaction_date, type: tx.transaction_type, totalCost: 0, totalRevenue: 0, items: [] };
@@ -55,19 +75,21 @@ const CostSheet = () => {
     acc[ref].txs.push(tx);
     for (const li of tx.items || []) {
       acc[ref].items.push(li);
-      acc[ref].totalCost += (li.unit_price || 0) * (li.quantity || 0);
+      acc[ref].totalCost += lineCost(li);
     }
     acc[ref].totalRevenue += tx.total_amount || 0;
     return acc;
-  }, {} as Record<string, any>);
+  }, {});
 
-  const groups = Object.values(grouped);
+  const groups: CostGroup[] = Object.values(grouped);
 
   const totalCost = transactions.reduce((sum, tx) =>
-    sum + (tx.items || []).reduce((s: number, li: any) => s + (li.unit_price || 0) * (li.quantity || 0), 0), 0
+    sum + (tx.items || []).reduce((s: number, li: any) => s + lineCost(li), 0), 0
   );
   const totalRevenue = transactions.reduce((sum, tx) => sum + (tx.total_amount || 0), 0);
   const totalClients = new Set(transactions.map((tx) => tx.customer_supplier_name).filter(Boolean)).size;
+  const transfersOnly = typeFilter === "transfer";
+  const allExpanded = groups.length > 0 && groups.every((g) => expandedRefs.has(g.ref));
 
   const toggleRef = (ref: string) => {
     const next = new Set(expandedRefs);
@@ -76,186 +98,136 @@ const CostSheet = () => {
     setExpandedRefs(next);
   };
 
-  const generateGroupPDF = (group: any) =>
+  const generateGroupPDF = (group: CostGroup) =>
     costSheetPdf(group).catch((err: any) => toast({ variant: "destructive", title: "Error generating PDF", description: err.message }));
-
-  if (loading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        </div>
-      </Layout>
-    );
-  }
 
   return (
     <Layout>
-      <div className="space-y-4">
-        <div>
-          <h2 className="text-2xl font-bold tracking-tight">Cost Sheet</h2>
-          <p className="text-sm text-muted-foreground">Track transfers and sales grouped by reference</p>
+      <div className="space-y-5">
+        <PageHeader title="Cost sheet" description="Transfers and sales grouped by reference" />
+
+        <div className={`grid grid-cols-2 gap-3 ${transfersOnly ? "lg:grid-cols-3" : "lg:grid-cols-4"}`}>
+          <StatCard label="References" value={formatQty(groups.length)} icon={Hash} />
+          <StatCard label="Clients" value={formatQty(totalClients)} icon={Users} />
+          {transfersOnly ? (
+            <StatCard label="Transfer value" value={formatMoney(totalRevenue)} icon={Wallet} />
+          ) : (
+            <>
+              <StatCard label="Total cost" value={formatMoney(totalCost)} hint="Stock cost of the lines" icon={Wallet} />
+              <StatCard label="Revenue" value={formatMoney(totalRevenue)} hint="Transaction totals" icon={TrendingUp} />
+            </>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="shadow-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Groups</CardTitle>
-              <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{groups.length}</div>
-              <p className="text-xs text-muted-foreground">By reference</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Unique Clients</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalClients}</div>
-              <p className="text-xs text-muted-foreground">Clients served</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Cost</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalCost.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">At cost price</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{totalRevenue.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">At selling price</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="shadow-card">
-          <CardContent className="pt-4">
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search client, reference..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
-              </div>
-              <div className="flex gap-2">
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="All Types" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Transfers & Sales</SelectItem>
-                    <SelectItem value="transfer">Transfers Only</SelectItem>
-                    <SelectItem value="sale">Sales Only</SelectItem>
-                  </SelectContent>
-                </Select>
-                {(searchTerm || typeFilter !== "all") && (
-                  <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setTypeFilter("all"); }}>Clear</Button>
-                )}
-                <Button variant="ghost" size="sm" onClick={() => { const all = new Set(groups.map((g) => g.ref)); setExpandedRefs(expandedRefs.size === all.size ? new Set() : all); }}>
-                  {expandedRefs.size === groups.length ? "Collapse All" : "Expand All"}
-                </Button>
-              </div>
+        <Card className="overflow-hidden">
+          <div className="flex flex-wrap items-center gap-2 border-b p-3">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search client or reference" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="h-9 pl-9" />
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="text-lg">Cost Sheet Ledger</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {groups.length === 0 ? (
-              <div className="text-center py-8">
-                <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No transactions found</h3>
-                <p className="text-sm text-muted-foreground">No transfers or sales match your criteria</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {groups.map((group) => {
-                  const isExpanded = expandedRefs.has(group.ref);
-                  return (
-                    <div key={group.ref} className="border rounded-lg">
-                      <div className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-muted/50" onClick={() => toggleRef(group.ref)}>
-                        <div className="flex items-center gap-3">
-                          {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
-                          <div>
-                            <div className="font-mono text-sm font-medium">{group.ref}</div>
-                            {group.fullRefs.size > 1 && (
-                              <div className="text-xs text-muted-foreground">
-                                {Array.from(group.fullRefs).join(' | ')}
-                              </div>
-                            )}
-                            <div className="text-xs text-muted-foreground">{group.client || "No client"} · {new Date(group.date).toLocaleDateString()}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <Badge variant={group.type === 'transfer' ? 'outline' : 'default'} className="text-xs">
-                            {group.type?.charAt(0).toUpperCase() + group.type?.slice(1)}
-                          </Badge>
-                          <div className="text-right text-sm">
-                            <div className="font-medium">{group.totalRevenue.toLocaleString()}</div>
-                            <div className="text-xs text-muted-foreground">Cost: {group.totalCost.toLocaleString()}</div>
-                          </div>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0" title="PDF" onClick={(e) => { e.stopPropagation(); generateGroupPDF(group); }}>
-                            <FileText className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                      {isExpanded && (
-                        <div className="border-t px-4 py-2">
-                          <div className="border rounded-lg overflow-x-auto">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead className="h-8 text-xs">Item</TableHead>
-                                  <TableHead className="h-8 text-xs">SKU</TableHead>
-                                  <TableHead className="h-8 text-xs">Category</TableHead>
-                                  <TableHead className="h-8 text-xs text-right">Qty</TableHead>
-                                  <TableHead className="h-8 text-xs text-right">Unit Price</TableHead>
-                                  <TableHead className="h-8 text-xs text-right">Total</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {group.items.map((li: any, idx: number) => (
-                                  <TableRow key={li.id || idx}>
-                                    <TableCell className="text-sm py-1.5">{li.items?.name || "Unknown"}</TableCell>
-                                    <TableCell className="font-mono text-xs py-1.5">{li.items?.sku || "-"}</TableCell>
-                                    <TableCell className="text-xs py-1.5">{li.items?.categories?.name || "-"}</TableCell>
-                                    <TableCell className="text-right text-xs py-1.5 font-medium">{li.quantity}</TableCell>
-                                     <TableCell className="text-right text-xs py-1.5">{(li.unit_price || 0).toFixed(2)}</TableCell>
-                                     <TableCell className="text-right text-xs py-1.5 font-medium">{(li.total_price || 0).toFixed(2)}</TableCell>
-                                  </TableRow>
-                                ))}
-                                <TableRow className="bg-muted/50">
-                                  <TableCell colSpan={3} className="text-xs font-medium py-1.5">Total ({group.items.length} items)</TableCell>
-                                  <TableCell className="text-right text-xs font-medium py-1.5">{group.items.reduce((s: number, li: any) => s + (li.quantity || 0), 0)}</TableCell>
-                                  <TableCell></TableCell>
-                                   <TableCell className="text-right text-xs font-bold py-1.5">{group.totalCost.toLocaleString()}</TableCell>
-                                </TableRow>
-                              </TableBody>
-                            </Table>
-                          </div>
-                          <div className="flex justify-end mt-2 gap-4 text-sm">
-                            <span className="text-muted-foreground">Revenue: <span className="font-bold text-foreground">{group.totalRevenue.toLocaleString()}</span></span>
-                            <span className="text-muted-foreground">Profit: <span className={`font-bold ${(group.totalRevenue - group.totalCost) >= 0 ? 'text-green-600' : 'text-red-600'}`}>{(group.totalRevenue - group.totalCost).toLocaleString()}</span></span>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="h-9 w-[170px]"><SelectValue placeholder="Transfers and sales" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Transfers and sales</SelectItem>
+                <SelectItem value="transfer">Transfers only</SelectItem>
+                <SelectItem value="sale">Sales only</SelectItem>
+              </SelectContent>
+            </Select>
+            {(searchTerm || typeFilter !== "all") && (
+              <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setTypeFilter("all"); }}>Clear</Button>
             )}
-          </CardContent>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="ml-auto text-muted-foreground"
+              disabled={groups.length === 0}
+              onClick={() => setExpandedRefs(allExpanded ? new Set() : new Set(groups.map((g) => g.ref)))}
+            >
+              {allExpanded ? <ChevronsDownUp className="h-4 w-4" /> : <ChevronsUpDown className="h-4 w-4" />}
+              {allExpanded ? "Collapse all" : "Expand all"}
+            </Button>
+          </div>
+
+          {loading ? (
+            <div className="flex min-h-[30vh] items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+            </div>
+          ) : groups.length === 0 ? (
+            <div className="py-12 text-center">
+              <FileText className="mx-auto mb-2 h-8 w-8 text-muted-foreground/60" />
+              <p className="text-sm text-muted-foreground">No transfers or sales match these filters</p>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {groups.map((group) => {
+                const isExpanded = expandedRefs.has(group.ref);
+                const showCost = differs(group.totalCost, group.totalRevenue);
+                const totalQty = group.items.reduce((s: number, li: any) => s + (li.quantity || 0), 0);
+                return (
+                  <Fragment key={group.ref}>
+                    <div className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-primary/[0.035]" onClick={() => toggleRef(group.ref)}>
+                      {isExpanded ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-mono text-sm font-medium">{group.ref}</div>
+                        {group.fullRefs.size > 1 && (
+                          <div className="truncate font-mono text-[11px] text-muted-foreground">{Array.from(group.fullRefs).join(" · ")}</div>
+                        )}
+                        <div className="truncate text-xs text-muted-foreground">{group.client || "No client"} · {formatDate(group.date)}</div>
+                      </div>
+                      <TxTypeBadge type={group.type} />
+                      <div className="w-[120px] shrink-0 text-right sm:w-[150px]">
+                        <div className="font-mono text-sm font-medium tabular-nums">{formatMoney(group.totalRevenue)}</div>
+                        {showCost && <div className="font-mono text-[11px] text-muted-foreground tabular-nums">Cost {formatMoney(group.totalCost)}</div>}
+                      </div>
+                      <Button variant="ghost" size="sm" className="h-7 w-7 shrink-0 p-0 text-muted-foreground" title="Download PDF" aria-label="Download PDF" onClick={(e) => { e.stopPropagation(); generateGroupPDF(group); }}>
+                        <FileText className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    {isExpanded && (
+                      <div className="bg-muted/40 px-4 py-3">
+                        <div className="overflow-hidden rounded-md border bg-card">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="h-8">Item</TableHead>
+                                <TableHead className="h-8">SKU</TableHead>
+                                <TableHead className="h-8 text-right">Qty</TableHead>
+                                <TableHead className="h-8 text-right">Unit price</TableHead>
+                                <TableHead className="h-8 text-right">Total</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {group.items.map((li: any, idx: number) => (
+                                <TableRow key={li.id || idx}>
+                                  <TableCell className="py-1.5">{li.items?.name || "Unknown"}</TableCell>
+                                  <TableCell className="py-1.5 font-mono text-xs">{orDash(li.items?.sku)}</TableCell>
+                                  <TableCell className="py-1.5 text-right">{formatQty(li.quantity)}</TableCell>
+                                  <TableCell className="py-1.5 text-right">{formatMoney(li.unit_price)}</TableCell>
+                                  <TableCell className="py-1.5 text-right font-medium">{formatMoney(li.total_price)}</TableCell>
+                                </TableRow>
+                              ))}
+                              <TableRow className="bg-muted/50 hover:bg-muted/50">
+                                <TableCell colSpan={2} className="py-1.5 text-xs font-medium">Total · {group.items.length} {group.items.length === 1 ? "line" : "lines"}</TableCell>
+                                <TableCell className="py-1.5 text-right font-medium">{formatQty(totalQty)}</TableCell>
+                                <TableCell className="py-1.5"></TableCell>
+                                <TableCell className="py-1.5 text-right font-semibold">{formatMoney(group.totalRevenue)}</TableCell>
+                              </TableRow>
+                            </TableBody>
+                          </Table>
+                        </div>
+                        {showCost && (
+                          <div className="mt-2 flex justify-end gap-4 text-xs text-muted-foreground">
+                            <span>Revenue <span className="font-mono font-medium text-foreground">{formatMoney(group.totalRevenue)}</span></span>
+                            <span>Profit <span className={`font-mono font-medium ${group.totalRevenue - group.totalCost >= 0 ? "text-emerald-700" : "text-red-600"}`}>{formatMoney(group.totalRevenue - group.totalCost)}</span></span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </div>
+          )}
         </Card>
       </div>
     </Layout>

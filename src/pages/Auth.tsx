@@ -51,27 +51,27 @@ const Auth = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="w-full max-w-md">
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary-glow rounded-xl flex items-center justify-center shadow-glow">
-            <Sun className="w-7 h-7 text-primary-foreground" />
+      <div className="w-full max-w-sm">
+        <div className="mb-6 flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary">
+            <Sun className="h-5 w-5 text-primary-foreground" />
           </div>
-          <div>
-            <h1 className="text-2xl font-bold">Agrisun Ethiopia</h1>
-            <p className="text-sm text-muted-foreground">Inventory Management System</p>
+          <div className="min-w-0 leading-tight">
+            <h1 className="text-lg font-semibold tracking-tight">Agrisun Ethiopia</h1>
+            <p className="text-sm text-muted-foreground">Inventory management</p>
           </div>
         </div>
 
-        <Card className="shadow-card">
-          <CardHeader>
-            <CardTitle className="text-lg">Welcome</CardTitle>
-            <CardDescription>Sign in to your account or create a new one</CardDescription>
+        <Card>
+          <CardHeader className="space-y-1 p-5 pb-4">
+            <CardTitle className="text-lg">Sign in</CardTitle>
+            <CardDescription>Use your work email, or create an account.</CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-5 pt-0">
             <Tabs defaultValue="signin">
-              <TabsList className="grid w-full grid-cols-2 mb-4">
-                <TabsTrigger value="signin">Sign In</TabsTrigger>
-                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              <TabsList className="mb-4 grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Sign in</TabsTrigger>
+                <TabsTrigger value="signup">Create account</TabsTrigger>
               </TabsList>
 
               <TabsContent value="signin">
@@ -99,7 +99,7 @@ const Auth = () => {
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Signing in…" : "Sign In"}
+                    {loading ? "Signing in…" : "Sign in"}
                   </Button>
                 </form>
               </TabsContent>
@@ -107,7 +107,7 @@ const Auth = () => {
               <TabsContent value="signup">
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="signup-name">Full Name</Label>
+                    <Label htmlFor="signup-name">Full name</Label>
                     <Input
                       id="signup-name"
                       value={fullName}
@@ -140,7 +140,7 @@ const Auth = () => {
                     />
                   </div>
                   <Button type="submit" className="w-full" disabled={loading}>
-                    {loading ? "Creating account…" : "Create Account"}
+                    {loading ? "Creating account…" : "Create account"}
                   </Button>
                 </form>
               </TabsContent>

@@ -1,11 +1,12 @@
 import React, { useCallback, useState } from "react";
 import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { items as itemsApi, transactions as txApi, categories as categoriesApi, normalizeItem } from "@/lib/api";
 import * as XLSX from "xlsx";
+import { formatDate, formatMoney, formatQty } from "@/lib/format";
 
 interface ProductPreview {
   sheetName: string;
@@ -270,95 +271,99 @@ export function ExcelUploader() {
   const reset = () => { setFile(null); setProducts([]); setExpandedProducts(new Set()); setResult(null); setError(null); setProgress(0); };
 
   return (
-    <Card className="w-full max-w-6xl mx-auto">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2"><FileSpreadsheet className="h-5 w-5" />Import Inventory from Excel</CardTitle>
-        <CardDescription>Preview and import your stock items with transaction history</CardDescription>
-      </CardHeader>
-      <CardContent>
+    <Card className="w-full">
+      <CardContent className="p-4 sm:p-5">
         {!file ? (
           <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-            className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${isDragging ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50"}`}>
-            <Upload className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
-            <p className="text-lg font-medium mb-2">Drag and drop your Excel file here</p>
-            <p className="text-sm text-muted-foreground mb-4">Each sheet should represent a product with stock transactions</p>
+            className={`rounded-lg border border-dashed px-6 py-12 text-center transition-colors ${isDragging ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"}`}>
+            <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-md bg-muted">
+              <Upload className="h-5 w-5 text-muted-foreground" />
+            </div>
+            <p className="font-medium">Drop an Excel file here</p>
+            <p className="mb-4 mt-1 text-sm text-muted-foreground">.xlsx or .xls, one product per sheet</p>
             <input type="file" accept=".xlsx,.xls" onChange={handleFileSelect} className="hidden" id="file-upload" />
-            <Button asChild><label htmlFor="file-upload" className="cursor-pointer">Browse Files</label></Button>
+            <Button asChild size="sm"><label htmlFor="file-upload" className="cursor-pointer">Choose file</label></Button>
           </div>
         ) : result?.success ? (
-          <div className="text-center py-12">
-            <CheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
-            <h3 className="text-xl font-semibold mb-2">{result.message}</h3>
-            <p className="text-muted-foreground mb-4">Imported {result.productsCount} products and {result.transactionsCount} transactions</p>
-            <Button onClick={reset}>Import Another File</Button>
+          <div className="py-12 text-center">
+            <CheckCircle className="mx-auto mb-3 h-10 w-10 text-emerald-600" />
+            <h3 className="mb-1 text-lg font-semibold">Import complete</h3>
+            <p className="mb-4 text-sm text-muted-foreground">Imported {formatQty(result.productsCount)} products and {formatQty(result.transactionsCount)} transactions</p>
+            <Button size="sm" onClick={reset}>Import another file</Button>
           </div>
         ) : error ? (
-          <div className="text-center py-12">
-            <AlertCircle className="mx-auto h-16 w-16 text-red-500 mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Import Failed</h3>
-            <p className="text-muted-foreground mb-4">{error}</p>
-            <Button onClick={reset}>Try Again</Button>
+          <div className="py-12 text-center">
+            <AlertCircle className="mx-auto mb-3 h-10 w-10 text-red-600" />
+            <h3 className="mb-1 text-lg font-semibold">Import failed</h3>
+            <p className="mb-4 text-sm text-muted-foreground">{error}</p>
+            <Button size="sm" onClick={reset}>Try again</Button>
           </div>
         ) : isProcessing ? (
           <div className="py-12">
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-medium">Processing...</span>
-              <span className="text-sm text-muted-foreground">{progress}%</span>
+            <div className="mb-3 flex items-center justify-between text-sm">
+              <span className="flex items-center gap-2 font-medium"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />Importing…</span>
+              <span className="font-mono text-muted-foreground">{progress}%</span>
             </div>
-            <Progress value={progress} className="mb-4" />
-            <div className="flex items-center justify-center gap-2 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" /><span>Importing your data...</span>
-            </div>
+            <Progress value={progress} />
           </div>
         ) : products.length > 0 ? (
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <div><p className="font-medium">{file.name}</p><p className="text-sm text-muted-foreground">{products.length} products found</p></div>
-              <div className="flex gap-2"><Button variant="outline" onClick={reset}>Cancel</Button><Button onClick={startImport}>Import All</Button></div>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-2.5">
+                <FileSpreadsheet className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{file.name}</p>
+                  <p className="text-xs text-muted-foreground">{products.length} {products.length === 1 ? "product" : "products"} found</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={reset}>Cancel</Button>
+                <Button size="sm" onClick={startImport}>Import all</Button>
+              </div>
             </div>
-            <div className="border rounded-lg">
+            <div className="overflow-hidden rounded-lg border">
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-8"></TableHead>
-                    <TableHead>Stock Code</TableHead><TableHead>Product Name</TableHead><TableHead>UOM</TableHead>
-                    <TableHead className="text-right">IN</TableHead><TableHead className="text-right">OUT</TableHead>
-                    <TableHead className="text-right">Balance</TableHead><TableHead className="text-right">Last Cost</TableHead>
+                    <TableHead>Stock code</TableHead><TableHead>Product</TableHead><TableHead>UOM</TableHead>
+                    <TableHead className="text-right">In</TableHead><TableHead className="text-right">Out</TableHead>
+                    <TableHead className="text-right">Balance</TableHead><TableHead className="text-right">Last cost</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {products.map((product) => (
                     <React.Fragment key={product.sku}>
-                      <TableRow className="cursor-pointer hover:bg-muted/50" onClick={() => toggleExpand(product.sheetName)}>
-                        <TableCell>{expandedProducts.has(product.sheetName) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
-                        <TableCell className="font-mono">{product.sku}</TableCell>
+                      <TableRow className="cursor-pointer" onClick={() => toggleExpand(product.sheetName)}>
+                        <TableCell className="text-muted-foreground">{expandedProducts.has(product.sheetName) ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
+                        <TableCell className="font-mono text-xs">{product.sku}</TableCell>
                         <TableCell><p className="font-medium">{product.name}</p><p className="text-xs text-muted-foreground">{detectCategory(product.name)}</p></TableCell>
                         <TableCell>{product.uom}</TableCell>
-                        <TableCell className="text-right font-medium text-green-600">{product.totalIn.toLocaleString()}</TableCell>
-                        <TableCell className="text-right font-medium text-red-600">{product.totalOut.toLocaleString()}</TableCell>
-                        <TableCell className="text-right font-bold">{product.currentBalance.toLocaleString()}</TableCell>
-                        <TableCell className="text-right">{product.lastCost > 0 ? product.lastCost.toLocaleString() : "-"}</TableCell>
+                        <TableCell className="text-right text-emerald-700">{formatQty(product.totalIn)}</TableCell>
+                        <TableCell className="text-right text-red-600">{formatQty(product.totalOut)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatQty(product.currentBalance)}</TableCell>
+                        <TableCell className="text-right">{product.lastCost > 0 ? formatMoney(product.lastCost) : "—"}</TableCell>
                       </TableRow>
                       {expandedProducts.has(product.sheetName) && product.transactions.length > 0 && (
-                        <TableRow>
-                          <TableCell colSpan={8} className="bg-muted/30 p-4">
-                            <div className="max-h-64 overflow-y-auto">
+                        <TableRow className="hover:bg-transparent">
+                          <TableCell colSpan={8} className="bg-muted/40 p-3">
+                            <div className="max-h-64 overflow-y-auto rounded-md border bg-card">
                               <Table>
                                 <TableHeader>
-                                  <TableRow className="bg-muted">
-                                    <TableHead>Date</TableHead><TableHead>Reference</TableHead>
-                                    <TableHead className="text-right">IN</TableHead><TableHead className="text-right">OUT</TableHead>
-                                    <TableHead className="text-right">Unit Cost</TableHead>
+                                  <TableRow>
+                                    <TableHead className="h-8">Date</TableHead><TableHead className="h-8">Reference</TableHead>
+                                    <TableHead className="h-8 text-right">In</TableHead><TableHead className="h-8 text-right">Out</TableHead>
+                                    <TableHead className="h-8 text-right">Unit cost</TableHead>
                                   </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                   {product.transactions.map((tx, idx) => (
                                     <TableRow key={idx}>
-                                      <TableCell>{tx.date}</TableCell>
-                                      <TableCell className="font-mono text-xs">{tx.reference}</TableCell>
-                                      <TableCell className="text-right text-green-600">{tx.in > 0 ? tx.in.toLocaleString() : ""}</TableCell>
-                                      <TableCell className="text-right text-red-600">{tx.out > 0 ? tx.out.toLocaleString() : ""}</TableCell>
-                                      <TableCell className="text-right">{tx.unitCost > 0 ? tx.unitCost.toLocaleString() : ""}</TableCell>
+                                      <TableCell className="whitespace-nowrap py-1.5 text-xs">{formatDate(tx.date)}</TableCell>
+                                      <TableCell className="py-1.5 font-mono text-xs">{tx.reference}</TableCell>
+                                      <TableCell className="py-1.5 text-right text-xs text-emerald-700">{tx.in > 0 ? formatQty(tx.in) : ""}</TableCell>
+                                      <TableCell className="py-1.5 text-right text-xs text-red-600">{tx.out > 0 ? formatQty(tx.out) : ""}</TableCell>
+                                      <TableCell className="py-1.5 text-right text-xs">{tx.unitCost > 0 ? formatMoney(tx.unitCost) : ""}</TableCell>
                                     </TableRow>
                                   ))}
                                 </TableBody>
@@ -374,7 +379,10 @@ export function ExcelUploader() {
             </div>
           </div>
         ) : (
-          <div className="text-center py-12"><p className="text-muted-foreground">No products found in the file</p></div>
+          <div className="py-12 text-center">
+            <p className="mb-4 text-sm text-muted-foreground">No products found in this file</p>
+            <Button variant="outline" size="sm" onClick={reset}>Choose another file</Button>
+          </div>
         )}
       </CardContent>
     </Card>

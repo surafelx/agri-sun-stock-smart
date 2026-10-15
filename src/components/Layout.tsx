@@ -56,6 +56,7 @@ const Layout = ({ children }: LayoutProps) => {
 
   const isActiveRoute = (path: string) => {
     if (path === "/") return location.pathname === "/";
+    if (path === "/items") return ["/items", "/stock-card", "/transfer-card"].some((p) => location.pathname.startsWith(p));
     return location.pathname.startsWith(path);
   };
 
@@ -69,7 +70,16 @@ const Layout = ({ children }: LayoutProps) => {
 
   if (!user) return null;
 
-  const current = NAV.flatMap((g) => g.links.map((l) => ({ ...l, section: g.section }))).find((l) => isActiveRoute(l.path));
+  // Detail pages sit under the list they belong to
+  const DETAIL: Record<string, { section: string; parent: string; label: string }> = {
+    "/stock-card": { section: "Inventory", parent: "Stock Items", label: "Stock card" },
+    "/transfer-card": { section: "Inventory", parent: "Stock Items", label: "Transfer card" },
+    "/transactions/": { section: "Inventory", parent: "Transactions", label: "Transaction" },
+  };
+  const detail = Object.entries(DETAIL).find(([prefix]) => location.pathname.startsWith(prefix))?.[1];
+  const current = detail
+    ? { section: detail.section, label: detail.label, parent: detail.parent }
+    : NAV.flatMap((g) => g.links.map((l) => ({ ...l, section: g.section, parent: undefined as string | undefined }))).find((l) => isActiveRoute(l.path));
   const initials = (user.email || "?").slice(0, 2).toUpperCase();
 
   return (
@@ -146,6 +156,8 @@ const Layout = ({ children }: LayoutProps) => {
           <nav className="flex min-w-0 items-center gap-1.5 text-[13px]" aria-label="Breadcrumb">
             {current && <span className="hidden text-muted-foreground sm:inline">{current.section}</span>}
             {current && <span className="hidden text-muted-foreground/60 sm:inline">/</span>}
+            {current?.parent && <span className="hidden text-muted-foreground sm:inline">{current.parent}</span>}
+            {current?.parent && <span className="hidden text-muted-foreground/60 sm:inline">/</span>}
             <span className="truncate font-medium">{current?.label ?? "Agrisun Ethiopia"}</span>
           </nav>
         </header>

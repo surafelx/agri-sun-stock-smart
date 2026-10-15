@@ -3,17 +3,18 @@ import { useParams, useNavigate } from "react-router-dom";
 import { transactions as txApi, normalizeTransaction } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ArrowLeft, ShoppingCart, TrendingUp, FileText, ArrowRightLeft, Pencil, Trash2, Printer } from "lucide-react";
+import { ArrowLeft, FileText, Pencil, Trash2, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { invoicePdf } from "@/lib/invoicePdf";
+import PageHeader from "@/components/app/PageHeader";
+import { TxTypeBadge } from "@/components/app/Badges";
+import { partyLabel, TxDetailsBlock, TxLinesTable } from "@/components/app/TransactionBlocks";
 
 const TransactionDetail = () => {
   const { transactionId } = useParams<{ transactionId: string }>();
@@ -86,13 +87,11 @@ const TransactionDetail = () => {
   const makeInvoice = (mode: "download" | "print") =>
     invoicePdf(transaction, mode).catch((err: any) => toast({ variant: "destructive", title: "Error generating PDF", description: err.message }));
 
-  const totalProfit = (transaction?.items || []).reduce((s: number, li: any) => s + (li.profit || 0), 0);
-
   if (loading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
         </div>
       </Layout>
     );
@@ -101,132 +100,66 @@ const TransactionDetail = () => {
   if (!transaction) {
     return (
       <Layout>
-        <div className="text-center py-8">
-          <h2 className="text-xl font-semibold mb-2">Transaction not found</h2>
-          <Button onClick={() => navigate('/transactions')}><ArrowLeft className="mr-2 h-4 w-4" />Back to Transactions</Button>
+        <div className="py-16 text-center">
+          <h2 className="mb-3 text-xl font-semibold">Transaction not found</h2>
+          <Button variant="outline" size="sm" onClick={() => navigate('/transactions')}><ArrowLeft className="mr-1.5 h-4 w-4" />Back to transactions</Button>
         </div>
       </Layout>
     );
   }
 
-  const label = transaction.transaction_type === 'purchase' ? 'Supplier' : transaction.transaction_type === 'transfer' ? 'Client/Customer' : 'Customer';
+  const label = partyLabel(transaction.transaction_type);
 
   return (
     <Layout>
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Button variant="outline" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="mr-2 h-4 w-4" />Back</Button>
-            <div>
-              <h2 className="text-2xl font-bold">Transaction Details</h2>
-              <p className="text-sm text-muted-foreground">Reference: {transaction.reference_number}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="mr-1.5 h-4 w-4" />Edit</Button>
-            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}><Trash2 className="mr-1.5 h-4 w-4" />Delete</Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                {transaction.transaction_type === 'purchase' ? <ShoppingCart className="h-5 w-5" /> : transaction.transaction_type === 'transfer' ? <ArrowRightLeft className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
-                {transaction.transaction_type?.charAt(0).toUpperCase() + transaction.transaction_type?.slice(1)}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div><span className="font-medium">Reference:</span> {transaction.reference_number}</div>
-              <div><span className="font-medium">Date:</span> {new Date(transaction.transaction_date).toLocaleDateString()}</div>
-              <div><span className="font-medium">{label}:</span> {transaction.customer_supplier_name}</div>
-              {transaction.customer_supplier_contact && <div><span className="font-medium">Contact:</span> {transaction.customer_supplier_contact}</div>}
-              {transaction.notes && <div><span className="font-medium">Notes:</span> {transaction.notes}</div>}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader><CardTitle className="text-lg">Summary</CardTitle></CardHeader>
-            <CardContent className="space-y-2">
-              <div className="flex justify-between">
-                <span className="font-medium">Total Amount:</span>
-                <span className="text-lg font-bold">{transaction.total_amount?.toLocaleString()}</span>
-              </div>
-              {transaction.transaction_type === 'sale' && (
-                <div className="flex justify-between">
-                  <span className="font-medium">Total Profit:</span>
-                  <span className="text-lg font-bold text-green-600">{totalProfit.toLocaleString()}</span>
-                </div>
-              )}
-              <div className="pt-4">
-                <div className="grid grid-cols-2 gap-2">
-                  <Button onClick={() => makeInvoice("print")}><Printer className="mr-2 h-4 w-4" />Print Invoice</Button>
-                  <Button variant="outline" onClick={() => makeInvoice("download")}><FileText className="mr-2 h-4 w-4" />Download PDF</Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      <div className="space-y-5">
+        <Button variant="ghost" size="sm" className="-ml-2 h-8 text-muted-foreground print:hidden" onClick={() => navigate(-1)}><ArrowLeft className="mr-1.5 h-4 w-4" />Back</Button>
+        <PageHeader
+          title={<span className="flex flex-wrap items-center gap-2.5">Transaction details <TxTypeBadge type={transaction.transaction_type} /></span>}
+          description={<span className="break-all font-mono text-xs">{transaction.reference_number}</span>}
+          actions={
+            <>
+              <Button variant="outline" size="sm" onClick={() => makeInvoice("print")}><Printer className="mr-1.5 h-4 w-4" />Print</Button>
+              <Button variant="outline" size="sm" onClick={() => makeInvoice("download")}><FileText className="mr-1.5 h-4 w-4" />Download PDF</Button>
+              <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="mr-1.5 h-4 w-4" />Edit</Button>
+              <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}><Trash2 className="mr-1.5 h-4 w-4" />Delete</Button>
+            </>
+          }
+        />
 
         <Card>
-          <CardHeader><CardTitle className="text-lg">Line Items</CardTitle><CardDescription>Items included in this transaction</CardDescription></CardHeader>
-          <CardContent>
-            <div className="border rounded-lg">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="h-9">Item</TableHead>
-                    <TableHead className="h-9">SKU</TableHead>
-                    <TableHead className="h-9 text-right">Quantity</TableHead>
-                    <TableHead className="h-9 text-right">Unit Price</TableHead>
-                    <TableHead className="h-9 text-right">Total</TableHead>
-                    {transaction.transaction_type === 'sale' && <TableHead className="h-9 text-right">Profit</TableHead>}
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(transaction.items || []).map((li: any) => (
-                    <TableRow key={li.id}>
-                      <TableCell className="font-medium">{li.items?.name || 'Unknown'}</TableCell>
-                      <TableCell className="font-mono text-sm">{li.items?.sku || 'N/A'}</TableCell>
-                      <TableCell className="text-right">{li.quantity}</TableCell>
-                       <TableCell className="text-right">{li.unit_price?.toFixed(2)}</TableCell>
-                       <TableCell className="text-right font-semibold">{li.total_price?.toFixed(2)}</TableCell>
-                      {transaction.transaction_type === 'sale' && (
-                        <TableCell className="text-right">
-                          <Badge variant={(li.profit || 0) >= 0 ? "default" : "destructive"}>{(li.profit || 0).toFixed(2)}</Badge>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
+          <CardHeader className="pb-3"><CardTitle className="text-base">Details</CardTitle></CardHeader>
+          <CardContent><TxDetailsBlock tx={transaction} /></CardContent>
+        </Card>
+
+        <Card className="overflow-hidden">
+          <CardHeader className="pb-3"><CardTitle className="text-base">Line items</CardTitle></CardHeader>
+          <div className="border-t">
+            {(transaction.items || []).length === 0
+              ? <p className="py-10 text-center text-sm text-muted-foreground">No line items</p>
+              : <TxLinesTable tx={transaction} />}
+          </div>
         </Card>
       </div>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
-            <DialogTitle className="text-lg">Edit Transaction</DialogTitle>
-            <DialogDescription>Update reference, client/supplier info, and notes</DialogDescription>
+            <DialogTitle>Edit transaction</DialogTitle>
+            <DialogDescription>Reference, party and notes. Line items stay as they are.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleEditSubmit} className="space-y-3">
-            <div className="space-y-1"><Label>Reference Number *</Label>
-              <Input value={editForm.reference} onChange={(e) => setEditForm({ ...editForm, reference: e.target.value })} required />
+          <form onSubmit={handleEditSubmit} className="space-y-5">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+              <div className="space-y-1.5"><Label>Reference</Label><Input value={editForm.reference} onChange={(e) => setEditForm({ ...editForm, reference: e.target.value })} required className="font-mono text-sm" /></div>
+              <div className="space-y-1.5"><Label>Date</Label><Input type="date" value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} required /></div>
+              <div className="space-y-1.5"><Label>{label}</Label><Input value={editForm.customerSupplier} onChange={(e) => setEditForm({ ...editForm, customerSupplier: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label>TIN</Label><Input value={editForm.tinNo} onChange={(e) => setEditForm({ ...editForm, tinNo: e.target.value })} placeholder="Tax ID" /></div>
+              <div className="space-y-1.5"><Label>Contact</Label><Input value={editForm.contact} onChange={(e) => setEditForm({ ...editForm, contact: e.target.value })} /></div>
+              <div className="space-y-1.5 sm:col-span-2"><Label>Notes</Label><Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} rows={2} /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={editForm.date} onChange={(e) => setEditForm({ ...editForm, date: e.target.value })} required /></div>
-              <div className="space-y-1"><Label>Contact</Label><Input value={editForm.contact} onChange={(e) => setEditForm({ ...editForm, contact: e.target.value })} /></div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>{label}</Label><Input value={editForm.customerSupplier} onChange={(e) => setEditForm({ ...editForm, customerSupplier: e.target.value })} /></div>
-              <div className="space-y-1"><Label>TIN No</Label><Input value={editForm.tinNo} onChange={(e) => setEditForm({ ...editForm, tinNo: e.target.value })} placeholder="Tax ID" /></div>
-            </div>
-            <div className="space-y-1"><Label>Notes</Label><Textarea value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} rows={2} /></div>
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={submitting}>{submitting ? "Updating..." : "Update"}</Button>
+              <Button type="submit" disabled={submitting}>{submitting ? "Saving…" : "Save changes"}</Button>
             </div>
           </form>
         </DialogContent>
@@ -235,7 +168,7 @@ const TransactionDetail = () => {
       <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
+            <AlertDialogTitle>Delete transaction?</AlertDialogTitle>
             <AlertDialogDescription>This will reverse the stock changes and cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -2,8 +2,12 @@ import { useEffect, useState } from "react";
 import { users as usersApi, categories as categoriesApi, suppliers as suppliersApi, transactions as txApi, normalizeUser, normalizeCategory, normalizeSubcategory } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import Layout from "@/components/Layout";
+import PageHeader from "@/components/app/PageHeader";
+import RowActions from "@/components/app/RowActions";
+import { RoleBadge } from "@/components/app/Badges";
+import { orDash } from "@/lib/format";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -11,8 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Settings, Users, Shield, Plus, Trash2, Tag, Pencil, Search, Truck, RefreshCw } from "lucide-react";
-import { stockBalance as sbApi } from "@/lib/api";
+import { Users, Plus, Trash2, Tag, Pencil, Search, Truck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 
@@ -304,12 +307,6 @@ const Admin = () => {
     }
   };
 
-  const roleColor = (role: string) => {
-    if (role === 'admin') return 'destructive';
-    if (role === 'accountant') return 'default';
-    return 'secondary';
-  };
-
   const filteredUsers = usersList;
 
   const filteredCategories = categoriesList.filter((c) => {
@@ -326,16 +323,28 @@ const Admin = () => {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
       </Layout>
     );
   }
 
+  const roleOptions = (
+    <SelectContent>
+      <SelectItem value="admin">Admin</SelectItem>
+      <SelectItem value="inventory_clerk">Inventory clerk</SelectItem>
+      <SelectItem value="accountant">Accountant</SelectItem>
+    </SelectContent>
+  );
+  const emptyRow = (colSpan: number, text: string) => (
+    <TableRow className="hover:bg-transparent"><TableCell colSpan={colSpan} className="py-8 text-center text-sm text-muted-foreground">{text}</TableCell></TableRow>
+  );
+  const toolbar = "flex flex-wrap items-center gap-2 border-b p-3";
+
   return (
     <Layout>
-      <div className="space-y-4">
-        <div><h2 className="text-2xl font-bold">Admin Settings</h2><p className="text-sm text-muted-foreground">Manage users and system configuration</p></div>
+      <div className="space-y-5">
+        <PageHeader title="Admin" description="Users, categories and suppliers" />
 
         <Tabs defaultValue="users" className="space-y-3">
           <TabsList>
@@ -344,28 +353,39 @@ const Admin = () => {
             <TabsTrigger value="suppliers" className="gap-1.5"><Truck className="h-3.5 w-3.5" />Suppliers</TabsTrigger>
           </TabsList>
 
-          {/* ── Users Tab ── */}
-          <TabsContent value="users">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-3">
-                <div><CardTitle className="text-base flex items-center gap-2"><Shield className="h-4 w-4" />User Management</CardTitle><CardDescription className="text-sm">Manage system users and roles</CardDescription></div>
+          {/* ── Users ── */}
+          <TabsContent value="users" className="mt-0">
+            <Card className="overflow-hidden">
+              <div className={toolbar}>
+                <div className="relative min-w-[220px] flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input placeholder="Search name or email" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} className="h-9 pl-9" />
+                </div>
+                <Select value={roleFilter} onValueChange={setRoleFilter}>
+                  <SelectTrigger className="h-9 w-[160px]"><SelectValue placeholder="All roles" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All roles</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="inventory_clerk">Inventory clerk</SelectItem>
+                    <SelectItem value="accountant">Accountant</SelectItem>
+                  </SelectContent>
+                </Select>
+                {(userSearch || roleFilter !== "all") && (
+                  <Button variant="ghost" size="sm" onClick={() => { setUserSearch(""); setRoleFilter("all"); }}>Clear</Button>
+                )}
                 <Dialog open={userDialogOpen} onOpenChange={setUserDialogOpen}>
-                  <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" />Add User</Button></DialogTrigger>
+                  <DialogTrigger asChild><Button size="sm" className="ml-auto"><Plus className="h-4 w-4" />Add user</Button></DialogTrigger>
                   <DialogContent>
-                    <DialogHeader><DialogTitle>Create User</DialogTitle><DialogDescription>Add a new system user</DialogDescription></DialogHeader>
+                    <DialogHeader><DialogTitle>Add user</DialogTitle><DialogDescription>They sign in with this email and password.</DialogDescription></DialogHeader>
                     <div className="space-y-3">
-                      <div className="space-y-1"><Label>Full Name</Label><Input value={newUserForm.fullName} onChange={(e) => setNewUserForm({ ...newUserForm, fullName: e.target.value })} /></div>
+                      <div className="space-y-1"><Label>Full name</Label><Input value={newUserForm.fullName} onChange={(e) => setNewUserForm({ ...newUserForm, fullName: e.target.value })} /></div>
                       <div className="space-y-1"><Label>Email</Label><Input type="email" value={newUserForm.email} onChange={(e) => setNewUserForm({ ...newUserForm, email: e.target.value })} /></div>
-                      <div className="space-y-1"><Label>Password</Label><Input type="password" value={newUserForm.password} onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })} placeholder="Min 6 chars" /></div>
+                      <div className="space-y-1"><Label>Password</Label><Input type="password" value={newUserForm.password} onChange={(e) => setNewUserForm({ ...newUserForm, password: e.target.value })} placeholder="At least 6 characters" /></div>
                       <div className="space-y-1">
                         <Label>Role</Label>
                         <Select value={newUserForm.role} onValueChange={(v) => setNewUserForm({ ...newUserForm, role: v })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">Admin</SelectItem>
-                            <SelectItem value="inventory_clerk">Inventory Clerk</SelectItem>
-                            <SelectItem value="accountant">Accountant</SelectItem>
-                          </SelectContent>
+                          {roleOptions}
                         </Select>
                       </div>
                       <div className="flex justify-end gap-2 pt-2">
@@ -375,150 +395,61 @@ const Admin = () => {
                     </div>
                   </DialogContent>
                 </Dialog>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="flex flex-col md:flex-row gap-3 mb-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input placeholder="Search name, email..." value={userSearch} onChange={(e) => setUserSearch(e.target.value)} className="pl-9" />
-                  </div>
-                  <div className="flex gap-2">
-                    <Select value={roleFilter} onValueChange={setRoleFilter}>
-                      <SelectTrigger className="w-[160px]"><SelectValue placeholder="All Roles" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Roles</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="inventory_clerk">Inventory Clerk</SelectItem>
-                        <SelectItem value="accountant">Accountant</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {(userSearch || roleFilter !== "all") && (
-                      <Button variant="ghost" size="sm" onClick={() => { setUserSearch(""); setRoleFilter("all"); }}>Clear</Button>
-                    )}
-                  </div>
-                </div>
-                <div className="border rounded-lg">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="h-9 text-xs">Name</TableHead>
-                        <TableHead className="h-9 text-xs">Email</TableHead>
-                        <TableHead className="h-9 text-xs">Role</TableHead>
-                        <TableHead className="h-9 text-xs">Status</TableHead>
-                        <TableHead className="h-9 text-xs text-right">Actions</TableHead>
+              </div>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-10"><span className="sr-only">Actions</span></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.length === 0 ? emptyRow(5, "No users found") : filteredUsers.map((u) => {
+                    const active = u.is_active || u.isActive;
+                    return (
+                      <TableRow key={u.id}>
+                        <TableCell className="font-medium">{u.full_name || u.fullName}</TableCell>
+                        <TableCell className="text-muted-foreground">{u.email}</TableCell>
+                        <TableCell><RoleBadge role={u.role} /></TableCell>
+                        <TableCell><Badge variant={active ? "success" : "neutral"}>{active ? "Active" : "Inactive"}</Badge></TableCell>
+                        <TableCell className="py-1.5">
+                          <RowActions
+                            actions={[
+                              { label: "Edit", icon: Pencil, onSelect: () => handleEditUser(u) },
+                              { label: "Delete", icon: Trash2, onSelect: () => handleDeleteUser(u.id), danger: true, hidden: u.id === me?.id },
+                            ]}
+                          />
+                        </TableCell>
                       </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredUsers.length === 0 ? (
-                        <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No users found</TableCell></TableRow>
-                      ) : filteredUsers.map((u) => (
-                        <TableRow key={u.id}>
-                          <TableCell className="text-sm py-2 font-medium">{u.full_name || u.fullName}</TableCell>
-                          <TableCell className="text-sm py-2">{u.email}</TableCell>
-                          <TableCell className="py-2"><Badge variant={roleColor(u.role)} className="text-xs capitalize">{u.role}</Badge></TableCell>
-                          <TableCell className="py-2"><Badge variant={u.is_active || u.isActive ? "secondary" : "outline"} className="text-xs">{(u.is_active || u.isActive) ? "Active" : "Inactive"}</Badge></TableCell>
-                          <TableCell className="text-right py-2">
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="sm" onClick={() => handleEditUser(u)} className="h-7 w-7 p-0"><Pencil className="h-3.5 w-3.5" /></Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleDeleteUser(u.id)} className="h-7 w-7 p-0" disabled={u.id === me?.id}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </Card>
-
-            <Dialog open={editUserOpen} onOpenChange={setEditUserOpen}>
-              <DialogContent>
-                <DialogHeader><DialogTitle>Edit User</DialogTitle></DialogHeader>
-                <div className="space-y-3">
-                  <div className="space-y-1"><Label>Full Name</Label><Input value={editUserForm.fullName} onChange={(e) => setEditUserForm({ ...editUserForm, fullName: e.target.value })} /></div>
-                  <div className="space-y-1"><Label>Email</Label><Input type="email" value={editUserForm.email} onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })} /></div>
-                  <div className="space-y-1">
-                    <Label>Role</Label>
-                    <Select value={editUserForm.role} onValueChange={(v) => setEditUserForm({ ...editUserForm, role: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="admin">Admin</SelectItem>
-                        <SelectItem value="inventory_clerk">Inventory Clerk</SelectItem>
-                        <SelectItem value="accountant">Accountant</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button variant="outline" onClick={() => setEditUserOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSaveUser}>Save</Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
           </TabsContent>
 
-          {/* ── Categories Tab ── */}
-          <TabsContent value="categories">
-            <div className="flex flex-col md:flex-row gap-3 mb-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search categories, subcategories..." value={categorySearch} onChange={(e) => setCategorySearch(e.target.value)} className="pl-9" />
-              </div>
-              {categorySearch && (
-                <Button variant="ghost" size="sm" onClick={() => setCategorySearch("")}>Clear</Button>
-              )}
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Categories */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-3">
-                  <div><CardTitle className="text-base">Categories</CardTitle><CardDescription className="text-sm">{categoriesList.length} categories</CardDescription></div>
-                  <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
-                    <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" />Add</Button></DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader><DialogTitle>Add Category</DialogTitle></DialogHeader>
-                      <div className="space-y-3">
-                        <div className="space-y-1"><Label>Name</Label><Input value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} /></div>
-                        <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setCategoryDialogOpen(false)}>Cancel</Button><Button onClick={handleAddCategory}>Add</Button></div>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="border rounded-lg">
-                    <Table>
-                      <TableHeader><TableRow><TableHead className="h-9 text-xs">Name</TableHead><TableHead className="h-9 text-xs text-right">Actions</TableHead></TableRow></TableHeader>
-                      <TableBody>
-                        {filteredCategories.length === 0 ? (
-                          <TableRow><TableCell colSpan={2} className="text-center py-6 text-muted-foreground text-sm">No categories found</TableCell></TableRow>
-                        ) : filteredCategories.map((cat) => (
-                          <TableRow key={cat.id}>
-                            <TableCell className="text-sm py-2">{cat.name}</TableCell>
-                            <TableCell className="text-right py-2">
-                              <div className="flex justify-end gap-1">
-                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { setEditingCategory(cat); setEditCategoryName(cat.name); setEditCategoryOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleDeleteCategory(cat.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Subcategories */}
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between pb-3">
-                  <div><CardTitle className="text-base">Subcategories</CardTitle><CardDescription className="text-sm">{subcategoriesList.length} subcategories</CardDescription></div>
+          {/* ── Categories ── */}
+          <TabsContent value="categories" className="mt-0">
+            <Card className="overflow-hidden">
+              <div className={toolbar}>
+                <div className="relative min-w-[220px] flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input placeholder="Search categories and subcategories" value={categorySearch} onChange={(e) => setCategorySearch(e.target.value)} className="h-9 pl-9" />
+                </div>
+                {categorySearch && (
+                  <Button variant="ghost" size="sm" onClick={() => setCategorySearch("")}>Clear</Button>
+                )}
+                <div className="ml-auto flex gap-2">
                   <Dialog open={subcategoryDialogOpen} onOpenChange={setSubcategoryDialogOpen}>
-                    <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" />Add</Button></DialogTrigger>
+                    <DialogTrigger asChild><Button size="sm" variant="outline"><Plus className="h-4 w-4" />Subcategory</Button></DialogTrigger>
                     <DialogContent>
-                      <DialogHeader><DialogTitle>Add Subcategory</DialogTitle></DialogHeader>
+                      <DialogHeader><DialogTitle>Add subcategory</DialogTitle></DialogHeader>
                       <div className="space-y-3">
                         <div className="space-y-1">
-                          <Label>Parent Category</Label>
+                          <Label>Parent category</Label>
                           <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
                             <SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger>
                             <SelectContent>{categoriesList.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
@@ -529,91 +460,95 @@ const Admin = () => {
                       </div>
                     </DialogContent>
                   </Dialog>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <div className="border rounded-lg">
-                    <Table>
-                      <TableHeader><TableRow><TableHead className="h-9 text-xs">Name</TableHead><TableHead className="h-9 text-xs">Category</TableHead><TableHead className="h-9 text-xs text-right">Actions</TableHead></TableRow></TableHeader>
-                      <TableBody>
-                        {filteredSubcategories.length === 0 ? (
-                          <TableRow><TableCell colSpan={3} className="text-center py-6 text-muted-foreground text-sm">No subcategories found</TableCell></TableRow>
-                        ) : filteredSubcategories.map((sub) => (
-                          <TableRow key={sub.id}>
-                            <TableCell className="text-sm py-2">{sub.name}</TableCell>
-                            <TableCell className="text-sm py-2 text-muted-foreground">{sub.categories?.name || '-'}</TableCell>
-                            <TableCell className="text-right py-2">
-                              <div className="flex justify-end gap-1">
-                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => { setEditingSubcategory(sub); setEditSubcategoryName(sub.name); setEditSubcategoryCategoryId(sub.category_id); setEditSubcategoryOpen(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
-                                <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleDeleteSubcategory(sub)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            <Dialog open={editCategoryOpen} onOpenChange={setEditCategoryOpen}>
-              <DialogContent>
-                <DialogHeader><DialogTitle>Edit Category</DialogTitle></DialogHeader>
-                <div className="space-y-3">
-                  <div className="space-y-1"><Label>Name</Label><Input value={editCategoryName} onChange={(e) => setEditCategoryName(e.target.value)} /></div>
-                  <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditCategoryOpen(false)}>Cancel</Button><Button onClick={handleSaveCategory}>Save</Button></div>
+                  <Dialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen}>
+                    <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4" />Category</Button></DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader><DialogTitle>Add category</DialogTitle></DialogHeader>
+                      <div className="space-y-3">
+                        <div className="space-y-1"><Label>Name</Label><Input value={newCategoryName} onChange={(e) => setNewCategoryName(e.target.value)} /></div>
+                        <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setCategoryDialogOpen(false)}>Cancel</Button><Button onClick={handleAddCategory}>Add</Button></div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
-              </DialogContent>
-            </Dialog>
+              </div>
 
-            <Dialog open={editSubcategoryOpen} onOpenChange={setEditSubcategoryOpen}>
-              <DialogContent>
-                <DialogHeader><DialogTitle>Edit Subcategory</DialogTitle></DialogHeader>
-                <div className="space-y-3">
-                  <div className="space-y-1">
-                    <Label>Parent Category</Label>
-                    <Select value={editSubcategoryCategoryId} onValueChange={setEditSubcategoryCategoryId}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{categoriesList.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                    </Select>
+              <div className="grid md:grid-cols-2 md:divide-x">
+                <div className="min-w-0">
+                  <div className="flex items-baseline justify-between border-b px-3 py-2">
+                    <h3 className="text-sm font-semibold">Categories</h3>
+                    <span className="font-mono text-xs text-muted-foreground">{categoriesList.length}</span>
                   </div>
-                  <div className="space-y-1"><Label>Name</Label><Input value={editSubcategoryName} onChange={(e) => setEditSubcategoryName(e.target.value)} /></div>
-                  <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditSubcategoryOpen(false)}>Cancel</Button><Button onClick={handleSaveSubcategory}>Save</Button></div>
+                  <Table>
+                    <TableHeader><TableRow><TableHead>Name</TableHead><TableHead className="w-10"><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {filteredCategories.length === 0 ? emptyRow(2, "No categories found") : filteredCategories.map((cat) => (
+                        <TableRow key={cat.id}>
+                          <TableCell>{cat.name}</TableCell>
+                          <TableCell className="py-1.5">
+                            <RowActions
+                              actions={[
+                                { label: "Rename", icon: Pencil, onSelect: () => { setEditingCategory(cat); setEditCategoryName(cat.name); setEditCategoryOpen(true); } },
+                                { label: "Delete", icon: Trash2, onSelect: () => handleDeleteCategory(cat.id), danger: true },
+                              ]}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
-              </DialogContent>
-            </Dialog>
 
-            <Dialog open={editSupplierOpen} onOpenChange={setEditSupplierOpen}>
-              <DialogContent>
-                <DialogHeader><DialogTitle>Edit Supplier</DialogTitle></DialogHeader>
-                <div className="space-y-3">
-                  <div className="space-y-1"><Label>Name</Label><Input value={editSupplierForm.name} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, name: e.target.value })} /></div>
-                  <div className="space-y-1"><Label>TIN No</Label><Input value={editSupplierForm.tin_no} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, tin_no: e.target.value })} /></div>
-                  <div className="space-y-1"><Label>Contact</Label><Input value={editSupplierForm.contact} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, contact: e.target.value })} /></div>
-                  <div className="space-y-1"><Label>Address</Label><Input value={editSupplierForm.address} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, address: e.target.value })} /></div>
-                  <div className="space-y-1"><Label>Notes</Label><Input value={editSupplierForm.notes} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, notes: e.target.value })} /></div>
-                  <div className="flex justify-end gap-2 pt-2">
-                    <Button variant="outline" onClick={() => setEditSupplierOpen(false)}>Cancel</Button>
-                    <Button onClick={handleSaveSupplier}>Save</Button>
+                <div className="min-w-0 border-t md:border-t-0">
+                  <div className="flex items-baseline justify-between border-b px-3 py-2">
+                    <h3 className="text-sm font-semibold">Subcategories</h3>
+                    <span className="font-mono text-xs text-muted-foreground">{subcategoriesList.length}</span>
                   </div>
+                  <Table>
+                    <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Category</TableHead><TableHead className="w-10"><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {filteredSubcategories.length === 0 ? emptyRow(3, "No subcategories found") : filteredSubcategories.map((sub) => (
+                        <TableRow key={sub.id}>
+                          <TableCell>{sub.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{orDash(sub.categories?.name)}</TableCell>
+                          <TableCell className="py-1.5">
+                            <RowActions
+                              actions={[
+                                { label: "Edit", icon: Pencil, onSelect: () => { setEditingSubcategory(sub); setEditSubcategoryName(sub.name); setEditSubcategoryCategoryId(sub.category_id); setEditSubcategoryOpen(true); } },
+                                { label: "Delete", icon: Trash2, onSelect: () => handleDeleteSubcategory(sub), danger: true },
+                              ]}
+                            />
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
-              </DialogContent>
-            </Dialog>
+              </div>
+            </Card>
           </TabsContent>
-          <TabsContent value="suppliers">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-3">
-                <div><CardTitle className="text-base flex items-center gap-2"><Truck className="h-4 w-4" />Supplier Registry</CardTitle><CardDescription className="text-sm">Manage suppliers with TIN and contact info</CardDescription></div>
+
+          {/* ── Suppliers ── */}
+          <TabsContent value="suppliers" className="mt-0">
+            <Card className="overflow-hidden">
+              <div className={toolbar}>
+                <div className="relative min-w-[220px] flex-1">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input placeholder="Search name, TIN or contact" value={supplierSearch} onChange={(e) => { setSupplierSearch(e.target.value); }} className="h-9 pl-9" />
+                </div>
+                {supplierSearch && (
+                  <Button variant="ghost" size="sm" onClick={() => setSupplierSearch("")}>Clear</Button>
+                )}
                 <Dialog open={supplierDialogOpen} onOpenChange={setSupplierDialogOpen}>
-                  <DialogTrigger asChild><Button size="sm"><Plus className="h-4 w-4 mr-1" />Add Supplier</Button></DialogTrigger>
+                  <DialogTrigger asChild><Button size="sm" className="ml-auto"><Plus className="h-4 w-4" />Add supplier</Button></DialogTrigger>
                   <DialogContent>
-                    <DialogHeader><DialogTitle>Add Supplier</DialogTitle><DialogDescription>Add a new supplier to the registry</DialogDescription></DialogHeader>
+                    <DialogHeader><DialogTitle>Add supplier</DialogTitle><DialogDescription>Saved suppliers can be picked on purchases.</DialogDescription></DialogHeader>
                     <div className="space-y-3">
                       <div className="space-y-1"><Label>Name *</Label><Input value={newSupplierForm.name} onChange={(e) => setNewSupplierForm({ ...newSupplierForm, name: e.target.value })} required /></div>
-                      <div className="space-y-1"><Label>TIN No</Label><Input value={newSupplierForm.tin_no} onChange={(e) => setNewSupplierForm({ ...newSupplierForm, tin_no: e.target.value })} placeholder="Tax identification number" /></div>
+                      <div className="space-y-1"><Label>TIN no.</Label><Input value={newSupplierForm.tin_no} onChange={(e) => setNewSupplierForm({ ...newSupplierForm, tin_no: e.target.value })} placeholder="Tax identification number" /></div>
                       <div className="space-y-1"><Label>Contact</Label><Input value={newSupplierForm.contact} onChange={(e) => setNewSupplierForm({ ...newSupplierForm, contact: e.target.value })} placeholder="Phone or email" /></div>
-                      <div className="space-y-1"><Label>Address</Label><Input value={newSupplierForm.address} onChange={(e) => setNewSupplierForm({ ...newSupplierForm, address: e.target.value })} placeholder="Address" /></div>
-                      <div className="space-y-1"><Label>Notes</Label><Input value={newSupplierForm.notes} onChange={(e) => setNewSupplierForm({ ...newSupplierForm, notes: e.target.value })} placeholder="Additional notes" /></div>
+                      <div className="space-y-1"><Label>Address</Label><Input value={newSupplierForm.address} onChange={(e) => setNewSupplierForm({ ...newSupplierForm, address: e.target.value })} /></div>
+                      <div className="space-y-1"><Label>Notes</Label><Input value={newSupplierForm.notes} onChange={(e) => setNewSupplierForm({ ...newSupplierForm, notes: e.target.value })} /></div>
                       <div className="flex justify-end gap-2 pt-2">
                         <Button variant="outline" onClick={() => setSupplierDialogOpen(false)}>Cancel</Button>
                         <Button onClick={handleCreateSupplier}>Create</Button>
@@ -621,82 +556,140 @@ const Admin = () => {
                     </div>
                   </DialogContent>
                 </Dialog>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <div className="relative mb-4">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Search suppliers by name, TIN, contact..." value={supplierSearch} onChange={(e) => { setSupplierSearch(e.target.value); }} className="pl-9" />
-                </div>
-                {(() => {
-                  const registeredNames = new Set(suppliersList.map((s) => s.name?.toLowerCase()));
-                  const unregisteredTxSuppliers = txSuppliersList.filter((ts) => !registeredNames.has(ts.name?.toLowerCase()));
-                  const filteredRegistered = suppliersList.filter((s) => !supplierSearch || s.name?.toLowerCase().includes(supplierSearch.toLowerCase()) || s.tin_no?.toLowerCase().includes(supplierSearch.toLowerCase()) || s.contact?.toLowerCase().includes(supplierSearch.toLowerCase()));
-                  const filteredUnregistered = unregisteredTxSuppliers.filter((ts) => !supplierSearch || ts.name?.toLowerCase().includes(supplierSearch.toLowerCase()) || ts.tinNo?.toLowerCase().includes(supplierSearch.toLowerCase()) || ts.contact?.toLowerCase().includes(supplierSearch.toLowerCase()));
-                  return (
-                    <div className="border rounded-lg">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="h-9 text-xs">Name</TableHead>
-                            <TableHead className="h-9 text-xs">TIN No</TableHead>
-                            <TableHead className="h-9 text-xs">Contact</TableHead>
-                            <TableHead className="h-9 text-xs">Address</TableHead>
-                            <TableHead className="h-9 text-xs text-right">Actions</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {filteredRegistered.length === 0 && filteredUnregistered.length === 0 ? (
-                            <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground text-sm">No suppliers found</TableCell></TableRow>
-                          ) : (
-                            <>
-                              {filteredRegistered.map((s) => (
-                                <TableRow key={s.id}>
-                                  <TableCell className="text-sm py-2 font-medium">{s.name}</TableCell>
-                                  <TableCell className="text-sm py-2 font-mono">{s.tin_no || '-'}</TableCell>
-                                  <TableCell className="text-sm py-2">{s.contact || '-'}</TableCell>
-                                  <TableCell className="text-sm py-2 text-muted-foreground">{s.address || '-'}</TableCell>
-                                  <TableCell className="text-right py-2">
-                                    <div className="flex justify-end gap-1">
-                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleEditSupplier(s)}><Pencil className="h-3.5 w-3.5" /></Button>
-                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => handleDeleteSupplier(s.id)}><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                              {filteredUnregistered.length > 0 && (
-                                <TableRow>
-                                  <TableCell colSpan={5} className="py-2 px-3 bg-muted/50">
-                                    <span className="text-xs font-medium text-muted-foreground">From Transactions ({filteredUnregistered.length})</span>
-                                  </TableCell>
-                                </TableRow>
-                              )}
-                              {filteredUnregistered.map((ts, idx) => (
-                                <TableRow key={`tx-${idx}`} className="bg-muted/30">
-                                  <TableCell className="text-sm py-2 font-medium">
-                                    {ts.name}
-                                    <Badge variant="outline" className="ml-2 text-[10px] h-4">Transaction</Badge>
-                                  </TableCell>
-                                  <TableCell className="text-sm py-2 font-mono">{ts.tinNo || '-'}</TableCell>
-                                  <TableCell className="text-sm py-2">{ts.contact || '-'}</TableCell>
-                                  <TableCell className="text-sm py-2 text-muted-foreground">-</TableCell>
-                                  <TableCell className="text-right py-2">
-                                    <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => handleImportTxSupplier(ts)}>
-                                      <Plus className="h-3 w-3 mr-1" />Import
-                                    </Button>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </>
+              </div>
+              {(() => {
+                const registeredNames = new Set(suppliersList.map((s) => s.name?.toLowerCase()));
+                const unregisteredTxSuppliers = txSuppliersList.filter((ts) => !registeredNames.has(ts.name?.toLowerCase()));
+                const filteredRegistered = suppliersList.filter((s) => !supplierSearch || s.name?.toLowerCase().includes(supplierSearch.toLowerCase()) || s.tin_no?.toLowerCase().includes(supplierSearch.toLowerCase()) || s.contact?.toLowerCase().includes(supplierSearch.toLowerCase()));
+                const filteredUnregistered = unregisteredTxSuppliers.filter((ts) => !supplierSearch || ts.name?.toLowerCase().includes(supplierSearch.toLowerCase()) || ts.tinNo?.toLowerCase().includes(supplierSearch.toLowerCase()) || ts.contact?.toLowerCase().includes(supplierSearch.toLowerCase()));
+                return (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>TIN no.</TableHead>
+                        <TableHead>Contact</TableHead>
+                        <TableHead>Address</TableHead>
+                        <TableHead className="w-10"><span className="sr-only">Actions</span></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredRegistered.length === 0 && filteredUnregistered.length === 0 ? emptyRow(5, "No suppliers found") : (
+                        <>
+                          {filteredRegistered.map((s) => (
+                            <TableRow key={s.id}>
+                              <TableCell className="font-medium">{s.name}</TableCell>
+                              <TableCell className="font-mono text-xs">{orDash(s.tin_no)}</TableCell>
+                              <TableCell>{orDash(s.contact)}</TableCell>
+                              <TableCell className="text-muted-foreground">{orDash(s.address)}</TableCell>
+                              <TableCell className="py-1.5">
+                                <RowActions
+                                  actions={[
+                                    { label: "Edit", icon: Pencil, onSelect: () => handleEditSupplier(s) },
+                                    { label: "Delete", icon: Trash2, onSelect: () => handleDeleteSupplier(s.id), danger: true },
+                                  ]}
+                                />
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                          {filteredUnregistered.length > 0 && (
+                            <TableRow className="hover:bg-transparent">
+                              <TableCell colSpan={5} className="bg-muted/50 py-2">
+                                <span className="text-xs font-medium text-muted-foreground">Seen on transactions, not yet saved · {filteredUnregistered.length}</span>
+                              </TableCell>
+                            </TableRow>
                           )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  );
-                })()}
-              </CardContent>
+                          {filteredUnregistered.map((ts, idx) => (
+                            <TableRow key={`tx-${idx}`}>
+                              <TableCell className="font-medium">
+                                {ts.name}
+                                <Badge variant="neutral" className="ml-2">From transactions</Badge>
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">{orDash(ts.tinNo)}</TableCell>
+                              <TableCell>{orDash(ts.contact)}</TableCell>
+                              <TableCell className="text-muted-foreground">—</TableCell>
+                              <TableCell className="py-1.5 text-right">
+                                <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => handleImportTxSupplier(ts)}>
+                                  <Plus className="h-3 w-3" />Save
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </>
+                      )}
+                    </TableBody>
+                  </Table>
+                );
+              })()}
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Edit dialogs live outside the tabs so they open from any tab */}
+        <Dialog open={editUserOpen} onOpenChange={setEditUserOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit user</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1"><Label>Full name</Label><Input value={editUserForm.fullName} onChange={(e) => setEditUserForm({ ...editUserForm, fullName: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Email</Label><Input type="email" value={editUserForm.email} onChange={(e) => setEditUserForm({ ...editUserForm, email: e.target.value })} /></div>
+              <div className="space-y-1">
+                <Label>Role</Label>
+                <Select value={editUserForm.role} onValueChange={(v) => setEditUserForm({ ...editUserForm, role: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  {roleOptions}
+                </Select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setEditUserOpen(false)}>Cancel</Button>
+                <Button onClick={handleSaveUser}>Save</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={editCategoryOpen} onOpenChange={setEditCategoryOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Rename category</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1"><Label>Name</Label><Input value={editCategoryName} onChange={(e) => setEditCategoryName(e.target.value)} /></div>
+              <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditCategoryOpen(false)}>Cancel</Button><Button onClick={handleSaveCategory}>Save</Button></div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={editSubcategoryOpen} onOpenChange={setEditSubcategoryOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit subcategory</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label>Parent category</Label>
+                <Select value={editSubcategoryCategoryId} onValueChange={setEditSubcategoryCategoryId}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{categoriesList.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1"><Label>Name</Label><Input value={editSubcategoryName} onChange={(e) => setEditSubcategoryName(e.target.value)} /></div>
+              <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setEditSubcategoryOpen(false)}>Cancel</Button><Button onClick={handleSaveSubcategory}>Save</Button></div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={editSupplierOpen} onOpenChange={setEditSupplierOpen}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>Edit supplier</DialogTitle></DialogHeader>
+            <div className="space-y-3">
+              <div className="space-y-1"><Label>Name</Label><Input value={editSupplierForm.name} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, name: e.target.value })} /></div>
+              <div className="space-y-1"><Label>TIN no.</Label><Input value={editSupplierForm.tin_no} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, tin_no: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Contact</Label><Input value={editSupplierForm.contact} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, contact: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Address</Label><Input value={editSupplierForm.address} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, address: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Notes</Label><Input value={editSupplierForm.notes} onChange={(e) => setEditSupplierForm({ ...editSupplierForm, notes: e.target.value })} /></div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => setEditSupplierOpen(false)}>Cancel</Button>
+                <Button onClick={handleSaveSupplier}>Save</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </Layout>
   );

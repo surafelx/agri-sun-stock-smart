@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { items as itemsApi, transactions as txApi, normalizeItem, normalizeTransaction } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { PrintHeader, PrintButton } from "@/components/PrintHeader";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ArrowRightLeft, AlertCircle, Search } from "lucide-react";
+import PageHeader from "@/components/app/PageHeader";
+import StatCard from "@/components/app/StatCard";
+import { StockStatusBadge, TxTypeBadge } from "@/components/app/Badges";
+import { formatDate, formatMoney, formatQty, orDash } from "@/lib/format";
+import { ArrowLeft, ArrowRightLeft, AlertCircle, FileText, Package, Search, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const TransferStockCard = () => {
@@ -70,111 +74,93 @@ const TransferStockCard = () => {
           <div className="text-center">
             <AlertCircle className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
             <h3 className="text-lg font-semibold mb-2">Item not found</h3>
-            <Button onClick={() => navigate('/items')}>Back to Items</Button>
+            <Button variant="outline" onClick={() => navigate('/items')}>Back to stock items</Button>
           </div>
         </div>
       </Layout>
     );
   }
 
+  const balance = item.quantity ?? 0;
+  const isLow = balance <= (item.low_stock_threshold ?? 10);
+  const dash = <span className="text-muted-foreground">—</span>;
+
   return (
     <Layout>
-      <div className="space-y-4">
-        <PrintHeader title="Transfer Card Cost Sheet" subtitle={searchTerm ? `Filtered by "${searchTerm}"` : undefined} />
-        <div className="flex items-center justify-between print:hidden">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/items')}><ArrowLeft className="w-4 h-4 mr-1" />Back</Button>
-            <div>
-              <h2 className="text-2xl font-bold">Transfer Card Cost Sheet</h2>
-              <p className="text-sm text-muted-foreground">Transfer history and cost tracking for this item</p>
-            </div>
-          </div>
-          <PrintButton />
+      <div className="space-y-5">
+        <PrintHeader
+          title="Transfer Card Cost Sheet"
+          subtitle={`${item.name} • SKU ${item.sku}${searchTerm ? ` • Filtered by "${searchTerm}"` : ""}`}
+        />
+        <PageHeader
+          title={item.name}
+          description={`${item.sku} · ${item.categories?.name || "Uncategorized"}`}
+          actions={
+            <>
+              <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="mr-1.5 h-4 w-4" />Back</Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/stock-card/${item.id}`}><FileText className="mr-1.5 h-4 w-4" />Stock card</Link>
+              </Button>
+              <PrintButton />
+            </>
+          }
+        />
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 print:grid-cols-4 print:gap-2">
+          <StatCard label="Current balance" value={formatQty(balance)} hint={item.uom || undefined} icon={Package} />
+          <StatCard label="Cost price" value={formatMoney(item.cost_price)} icon={Wallet} />
+          <StatCard label="Transfers" value={formatQty(transfers.length)} hint={`${formatQty(totalQtyOut)} transferred out`} icon={ArrowRightLeft} />
+          <StatCard label="Status" value={<StockStatusBadge quantity={balance} isLowStock={isLow} />} />
         </div>
 
-        <Card className="shadow-card">
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <ArrowRightLeft className="h-5 w-5" />
-                  {item.name} — Cost Sheet
-                </CardTitle>
-                <CardDescription className="text-sm">
-                  SKU: {item.sku} • Category: {item.categories?.name || "Uncategorized"}
-                </CardDescription>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold">{transfers.length}</div>
-                <p className="text-xs text-muted-foreground">Total Transfers</p>
-              </div>
+        <Card className="overflow-hidden print:border-0 print:shadow-none">
+          <div className="flex flex-wrap items-center gap-2 border-b p-3 print:hidden">
+            <div className="relative min-w-[220px] flex-1 sm:max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search reference, party, notes" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="h-9 pl-9" />
             </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-              <div><p className="text-muted-foreground text-xs">Cost Price</p><p className="font-semibold">{Number(item.cost_price || 0).toFixed(2)}</p></div>
-              <div><p className="text-muted-foreground text-xs">Total Qty Transferred Out</p><p className="font-semibold">{totalQtyOut}</p></div>
-              <div>
-                <p className="text-muted-foreground text-xs">Current Balance</p>
-                <Badge variant={item.quantity > 0 ? "secondary" : "destructive"} className="text-xs">
-                  {item.quantity} units
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            {searchTerm && <Button variant="ghost" size="sm" onClick={() => setSearchTerm("")}>Clear</Button>}
+          </div>
 
-        <Card className="shadow-card">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div><CardTitle className="text-base">Transfer Logs</CardTitle><CardDescription className="text-sm">All transfer transactions involving this item</CardDescription></div>
-              <div className="relative w-64 print:hidden">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <input placeholder="Search reference, supplier..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-3 py-1.5 text-sm border rounded-md bg-background" />
-              </div>
+          {filteredTransfers.length === 0 ? (
+            <div className="py-12 text-center">
+              <ArrowRightLeft className="mx-auto mb-2 h-8 w-8 text-muted-foreground/60" />
+              <p className="text-sm text-muted-foreground">{transfers.length === 0 ? "No transfers recorded for this item yet" : "No transfers match your search"}</p>
             </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {filteredTransfers.length === 0 ? (
-              <div className="text-center py-8">
-                <ArrowRightLeft className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">{transfers.length === 0 ? "No transfers recorded for this item yet" : "No transfers match your search"}</p>
-              </div>
-            ) : (
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="h-9 text-xs">Date</TableHead>
-                      <TableHead className="h-9 text-xs">Reference</TableHead>
-                      <TableHead className="h-9 text-xs">From / Supplier</TableHead>
-                      <TableHead className="h-9 text-xs">Notes</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Qty</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Unit Price</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Total</TableHead>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Reference</TableHead>
+                    <TableHead>From purchase</TableHead>
+                    <TableHead>Party</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead className="text-right">Out</TableHead>
+                    <TableHead className="text-right">Unit price</TableHead>
+                    <TableHead className="text-right">Value</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredTransfers.flatMap((tx) => lineRows(tx).map((lineItem: any, idx: number) => (
+                    <TableRow key={`${tx.id}-${idx}`}>
+                      <TableCell className="whitespace-nowrap">{formatDate(tx.transaction_date)}</TableCell>
+                      <TableCell><TxTypeBadge type={tx.transaction_type || "transfer"} /></TableCell>
+                      <TableCell className="max-w-[160px] truncate font-mono text-xs print:max-w-none print:whitespace-normal" title={tx.reference_number || undefined}>{orDash(tx.reference_number)}</TableCell>
+                      <TableCell className="font-mono text-xs">{lineItem.purchaseRef || dash}</TableCell>
+                      <TableCell className="max-w-[180px] truncate print:max-w-none print:whitespace-normal" title={tx.customer_supplier_name || undefined}>{orDash(tx.customer_supplier_name)}</TableCell>
+                      <TableCell className="max-w-[200px] truncate text-muted-foreground print:max-w-none print:whitespace-normal" title={tx.notes || undefined}>{orDash(tx.notes)}</TableCell>
+                      <TableCell className="text-right">{formatQty(lineItem.quantity)}</TableCell>
+                      <TableCell className="text-right">{formatMoney(lineItem.unit_price)}</TableCell>
+                      <TableCell className="text-right font-semibold">{formatMoney(lineItem.total_price)}</TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredTransfers.flatMap((tx) => lineRows(tx).map((lineItem: any, idx: number) => {
-                      return (
-                        <TableRow key={`${tx.id}-${idx}`}>
-                          <TableCell className="py-2 text-xs">
-                            {new Date(tx.transaction_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                          </TableCell>
-                          <TableCell className="py-2 font-mono text-xs">{tx.reference_number}{lineItem.purchaseRef && <span className="block text-muted-foreground">from {lineItem.purchaseRef}</span>}</TableCell>
-                          <TableCell className="py-2 text-xs">{tx.customer_supplier_name || '-'}</TableCell>
-                          <TableCell className="py-2 text-xs text-muted-foreground max-w-[200px] truncate print:max-w-none print:whitespace-normal">{tx.notes || '-'}</TableCell>
-                          <TableCell className="py-2 text-right text-xs font-medium">{lineItem?.quantity || 0}</TableCell>
-                          <TableCell className="py-2 text-right text-xs">{lineItem?.unit_price?.toFixed(2) || '0.00'}</TableCell>
-                          <TableCell className="py-2 text-right text-xs font-semibold">{lineItem?.total_price?.toFixed(2) || '0.00'}</TableCell>
-                        </TableRow>
-                      );
-                    }))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
+                  )))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </Card>
       </div>
     </Layout>

@@ -3,15 +3,20 @@ import { stockBalance as sbApi } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { PrintHeader, PrintButton } from "@/components/PrintHeader";
 import ExportDialog from "@/components/ExportDialog";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import PageHeader from "@/components/app/PageHeader";
+import StatCard from "@/components/app/StatCard";
+import RowActions from "@/components/app/RowActions";
+import { usePaged, Pager } from "@/components/app/Pager";
+import { StockStatusBadge } from "@/components/app/Badges";
+import { formatMoney, formatQty, orDash } from "@/lib/format";
+import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Package, TrendingUp, DollarSign, AlertTriangle, Plus, Minus, Search, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Package, TrendingUp, Wallet, AlertTriangle, Search, ArrowUpDown, ArrowUp, ArrowDown, FileText, ArrowRightLeft } from "lucide-react";
 
 const StockBalance = () => {
   const navigate = useNavigate();
@@ -22,7 +27,6 @@ const StockBalance = () => {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [colSearch, setColSearch] = useState({ sku: "", name: "", category: "", uom: "", quantity: "", costPrice: "", inventoryValue: "" });
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
   useEffect(() => {
@@ -44,24 +48,13 @@ const StockBalance = () => {
 
   const totalItems = balances.length;
   const totalValue = balances.reduce((s, b) => s + (b.inventoryValue || 0), 0);
-  const totalCost = balances.reduce((s, b) => s + (b.inventoryValue || 0), 0);
   const lowStockItems = balances.filter((b) => b.isLowStock && b.quantity > 0).length;
   const outOfStockItems = balances.filter((b) => b.quantity === 0).length;
+  const retailValue = balances.reduce((s, b) => s + (b.retailValue || 0), 0);
 
   const categories = [...new Set(balances.map((b) => b.category?.name).filter(Boolean))];
 
-  const filteredBalances = balances.filter((b: any) => {
-    if (colSearch.sku && !b.sku?.toLowerCase().includes(colSearch.sku.toLowerCase())) return false;
-    if (colSearch.name && !b.name?.toLowerCase().includes(colSearch.name.toLowerCase())) return false;
-    if (colSearch.category && !b.category?.name?.toLowerCase().includes(colSearch.category.toLowerCase())) return false;
-    if (colSearch.uom && !b.uom?.toLowerCase().includes(colSearch.uom.toLowerCase())) return false;
-    if (colSearch.quantity && !String(b.quantity).includes(colSearch.quantity)) return false;
-    if (colSearch.costPrice && !String(b.costPrice).includes(colSearch.costPrice)) return false;
-    if (colSearch.inventoryValue && !String(b.inventoryValue).includes(colSearch.inventoryValue)) return false;
-    return true;
-  });
-
-  const sortedBalances = [...filteredBalances].sort((a: any, b: any) => {
+  const sortedBalances = [...balances].sort((a: any, b: any) => {
     if (!sortConfig) return 0;
     const { key, direction } = sortConfig;
     let aVal = a[key];
@@ -95,249 +88,148 @@ const StockBalance = () => {
     return sortConfig.direction === 'asc' ? <ArrowUp className="h-3 w-3 ml-1" /> : <ArrowDown className="h-3 w-3 ml-1" />;
   };
 
-  const getStockStatus = (b: any) => {
-    if (b.quantity === 0) return { status: "Out of Stock", variant: "destructive" as const };
-    if (b.isLowStock) return { status: "Low Stock", variant: "secondary" as const };
-    return { status: "In Stock", variant: "default" as const };
-  };
+  const shownValue = sortedBalances.reduce((s, b) => s + (b.inventoryValue || 0), 0);
 
-  if (loading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        </div>
-      </Layout>
-    );
-  }
+  // Paging is screen-only: rows off the current page stay in the DOM so printing lists them all
+  const paged = usePaged(sortedBalances, 25);
+  const onPage = (idx: number) => idx >= paged.page * paged.pageSize && idx < (paged.page + 1) * paged.pageSize;
+
+  const sortHead = (k: string, label: string, right = false) => (
+    <TableHead className={`cursor-pointer select-none hover:text-foreground${right ? " text-right" : ""}`} onClick={() => handleSort(k)}>
+      <div className={`flex items-center${right ? " justify-end" : ""}`}>{label}{getSortIndicator(k)}</div>
+    </TableHead>
+  );
+
+  const filtersOn = !!(searchTerm || categoryFilter !== "all" || statusFilter !== "all");
+  const alerts = lowStockItems + outOfStockItems;
 
   return (
     <Layout>
-      <div className="space-y-6">
-        <PrintHeader title="Stock Balance Sheet" subtitle={`${sortedBalances.length} items • Total value (cost): ${totalValue.toLocaleString()}`} />
-        <div className="flex items-center justify-between print:hidden">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Stock Balance Sheet</h2>
-            <p className="text-muted-foreground">Complete inventory balance and valuation overview</p>
-          </div>
-          <div className="flex gap-2">
-            <ExportDialog itemIds={sortedBalances.map((b: any) => String(b.id))} />
-            <PrintButton />
-          </div>
+      <div className="space-y-5">
+        <PrintHeader title="Stock Balance Sheet" subtitle={`${sortedBalances.length} items • Total value (cost): ${formatMoney(totalValue)}`} />
+        <PageHeader
+          title="Stock balance"
+          description="Quantities and value at cost"
+          actions={
+            <>
+              <ExportDialog itemIds={sortedBalances.map((b: any) => String(b.id))} />
+              <PrintButton />
+            </>
+          }
+        />
+
+        <div className={`grid grid-cols-2 gap-3 print:gap-2 ${retailValue > 0 ? "lg:grid-cols-4 print:grid-cols-4" : "lg:grid-cols-3 print:grid-cols-3"}`}>
+          <StatCard label="Items" value={formatQty(totalItems)} icon={Package} />
+          <StatCard label="Value at cost" value={formatMoney(totalValue)} icon={Wallet} />
+          {retailValue > 0 && <StatCard label="Retail value" value={formatMoney(retailValue)} hint="At unit price" icon={TrendingUp} />}
+          <StatCard
+            label="Stock alerts"
+            value={alerts}
+            hint={`${lowStockItems} low · ${outOfStockItems} out`}
+            icon={AlertTriangle}
+            tone={alerts > 0 ? "warning" : "default"}
+          />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 print:grid-cols-4 print:gap-2">
-          <Card className="shadow-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Items</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{totalItems}</div><p className="text-xs text-muted-foreground">Active inventory items</p></CardContent>
-          </Card>
-          <Card className="shadow-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Value (Cost)</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent><div className="text-2xl font-bold">{totalValue.toLocaleString()}</div><p className="text-xs text-muted-foreground">At cost price</p></CardContent>
-          </Card>
-          <Card className="shadow-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Retail Value</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{balances.reduce((s, b) => s + (b.retailValue || 0), 0).toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">At unit price</p>
-            </CardContent>
-          </Card>
-          <Card className="shadow-card">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Stock Alerts</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{lowStockItems + outOfStockItems}</div>
-              <p className="text-xs text-muted-foreground">{lowStockItems} low + {outOfStockItems} out</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <Card className="shadow-card print:hidden">
-          <CardContent className="pt-4">
-            <div className="flex flex-col md:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search SKU, name, category..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
-              </div>
-              <div className="flex gap-2">
-                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-                  <SelectTrigger className="w-[180px]"><SelectValue placeholder="All Categories" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((c) => <SelectItem key={c} value={c!}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="w-[160px]"><SelectValue placeholder="All Status" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="in_stock">In Stock</SelectItem>
-                    <SelectItem value="low_stock">Low Stock</SelectItem>
-                    <SelectItem value="out_of_stock">Out of Stock</SelectItem>
-                  </SelectContent>
-                </Select>
-                {(searchTerm || categoryFilter !== "all" || statusFilter !== "all" || Object.values(colSearch).some(v => v)) && (
-                  <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setCategoryFilter("all"); setStatusFilter("all"); setColSearch({ sku: "", name: "", category: "", uom: "", quantity: "", costPrice: "", inventoryValue: "" }); setSortConfig(null); }}>Clear All</Button>
-                )}
-              </div>
+        <Card className="overflow-hidden print:border-0 print:shadow-none">
+          <div className="flex flex-wrap items-center gap-2 border-b p-3 print:hidden">
+            <div className="relative min-w-[220px] flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search SKU, name, category" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="h-9 pl-9" />
             </div>
-          </CardContent>
-        </Card>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="h-9 w-[180px]"><SelectValue placeholder="All categories" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All categories</SelectItem>
+                {categories.map((c) => <SelectItem key={c} value={c!}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="h-9 w-[150px]"><SelectValue placeholder="All statuses" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                <SelectItem value="in_stock">In stock</SelectItem>
+                <SelectItem value="low_stock">Low stock</SelectItem>
+                <SelectItem value="out_of_stock">Out of stock</SelectItem>
+              </SelectContent>
+            </Select>
+            {(filtersOn || sortConfig) && (
+              <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setCategoryFilter("all"); setStatusFilter("all"); setSortConfig(null); }}>Clear</Button>
+            )}
+          </div>
 
-        <Card className="shadow-card">
-          <CardHeader className="print:hidden">
-            <CardTitle className="text-lg">Stock Balance Summary</CardTitle>
-            <CardDescription>Current quantity and value for all inventory items</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {balances.length === 0 ? (
-              <div className="text-center py-8">
-                <Package className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">No items in inventory</h3>
-                <Button onClick={() => navigate('/items')}>Go to Items Management</Button>
-              </div>
-            ) : sortedBalances.length === 0 ? (
-              <div className="text-center py-8">
-                <Search className="mx-auto h-10 w-10 text-muted-foreground mb-3" />
-                <h3 className="text-base font-semibold mb-1">No results found</h3>
-                <p className="text-sm text-muted-foreground">Try adjusting your search or filters</p>
-              </div>
-            ) : (
-              <div className="border rounded-lg overflow-x-auto print:border-0">
+          {loading ? (
+            <div className="flex min-h-[30vh] items-center justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div>
+            </div>
+          ) : sortedBalances.length === 0 ? (
+            <div className="py-12 text-center">
+              {filtersOn ? (
+                <>
+                  <Search className="mx-auto mb-2 h-8 w-8 text-muted-foreground/60" />
+                  <p className="text-sm text-muted-foreground">No results. Try other filters.</p>
+                </>
+              ) : (
+                <>
+                  <Package className="mx-auto mb-2 h-8 w-8 text-muted-foreground/60" />
+                  <p className="mb-3 text-sm text-muted-foreground">No items in inventory</p>
+                  <Button size="sm" variant="outline" onClick={() => navigate("/items")}>Go to stock items</Button>
+                </>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="overflow-x-auto">
                 <Table className="print-sheet">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="h-9 text-xs cursor-pointer hover:bg-muted" onClick={() => handleSort('sku')}>
-                        <div className="flex items-center">SKU {getSortIndicator('sku')}</div>
-                      </TableHead>
-                      <TableHead className="h-9 text-xs cursor-pointer hover:bg-muted" onClick={() => handleSort('name')}>
-                        <div className="flex items-center">Name {getSortIndicator('name')}</div>
-                      </TableHead>
-                      <TableHead className="h-9 text-xs cursor-pointer hover:bg-muted" onClick={() => handleSort('category')}>
-                        <div className="flex items-center">Category {getSortIndicator('category')}</div>
-                      </TableHead>
-                      <TableHead className="h-9 text-xs cursor-pointer hover:bg-muted" onClick={() => handleSort('uom')}>
-                        <div className="flex items-center">UOM {getSortIndicator('uom')}</div>
-                      </TableHead>
-                      <TableHead className="h-9 text-xs text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('quantity')}>
-                        <div className="flex items-center justify-end">Quantity {getSortIndicator('quantity')}</div>
-                      </TableHead>
-                      <TableHead className="h-9 text-xs text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('costPrice')}>
-                        <div className="flex items-center justify-end">Cost Price {getSortIndicator('costPrice')}</div>
-                      </TableHead>
-                      <TableHead className="h-9 text-xs text-right cursor-pointer hover:bg-muted" onClick={() => handleSort('inventoryValue')}>
-                        <div className="flex items-center justify-end">Inventory Value {getSortIndicator('inventoryValue')}</div>
-                      </TableHead>
-                      <TableHead className="h-9 text-xs">Status</TableHead>
-                      <TableHead className="h-9 text-xs text-right print:hidden">Actions</TableHead>
-                    </TableRow>
-                    <TableRow className="print:hidden">
-                      <TableHead className="h-8 p-1">
-                        <Input
-                          placeholder="Filter SKU"
-                          value={colSearch.sku}
-                          onChange={(e) => setColSearch({ ...colSearch, sku: e.target.value })}
-                          className="h-7 text-xs"
-                        />
-                      </TableHead>
-                      <TableHead className="h-8 p-1">
-                        <Input
-                          placeholder="Filter Name"
-                          value={colSearch.name}
-                          onChange={(e) => setColSearch({ ...colSearch, name: e.target.value })}
-                          className="h-7 text-xs"
-                        />
-                      </TableHead>
-                      <TableHead className="h-8 p-1">
-                        <Input
-                          placeholder="Filter Category"
-                          value={colSearch.category}
-                          onChange={(e) => setColSearch({ ...colSearch, category: e.target.value })}
-                          className="h-7 text-xs"
-                        />
-                      </TableHead>
-                      <TableHead className="h-8 p-1">
-                        <Input
-                          placeholder="Filter UOM"
-                          value={colSearch.uom}
-                          onChange={(e) => setColSearch({ ...colSearch, uom: e.target.value })}
-                          className="h-7 text-xs"
-                        />
-                      </TableHead>
-                      <TableHead className="h-8 p-1">
-                        <Input
-                          placeholder="Filter Qty"
-                          value={colSearch.quantity}
-                          onChange={(e) => setColSearch({ ...colSearch, quantity: e.target.value })}
-                          className="h-7 text-xs"
-                        />
-                      </TableHead>
-                      <TableHead className="h-8 p-1">
-                        <Input
-                          placeholder="Filter Cost"
-                          value={colSearch.costPrice}
-                          onChange={(e) => setColSearch({ ...colSearch, costPrice: e.target.value })}
-                          className="h-7 text-xs"
-                        />
-                      </TableHead>
-                      <TableHead className="h-8 p-1">
-                        <Input
-                          placeholder="Filter Value"
-                          value={colSearch.inventoryValue}
-                          onChange={(e) => setColSearch({ ...colSearch, inventoryValue: e.target.value })}
-                          className="h-7 text-xs"
-                        />
-                      </TableHead>
-                      <TableHead className="h-8 p-1"></TableHead>
-                      <TableHead className="h-8 p-1"></TableHead>
+                      {sortHead("sku", "SKU")}
+                      {sortHead("name", "Name")}
+                      {sortHead("category", "Category")}
+                      {sortHead("uom", "UOM")}
+                      {sortHead("quantity", "Quantity", true)}
+                      {sortHead("costPrice", "Cost price", true)}
+                      {sortHead("inventoryValue", "Value", true)}
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-10 print:hidden"><span className="sr-only">Actions</span></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sortedBalances.map((b: any) => {
-                      const ss = getStockStatus(b);
-                      return (
-                        <TableRow key={b.id}>
-                          <TableCell className="font-mono text-xs py-2">{b.sku}</TableCell>
-                          <TableCell className="font-medium text-sm py-2">
-                            <button onClick={() => navigate(`/stock-card/${b.id}`)} className="hover:text-primary hover:underline text-left">{b.name}</button>
-                          </TableCell>
-                          <TableCell className="text-sm py-2">{b.category?.name || '-'}</TableCell>
-                          <TableCell className="text-sm py-2">{b.uom || '-'}</TableCell>
-                          <TableCell className="text-right text-sm py-2 font-medium">
-                            {b.quantity > 0 ? <span className="text-green-600">{b.quantity.toLocaleString()}</span> : <span className="text-red-600">0</span>}
-                          </TableCell>
-                            <TableCell className="text-right text-sm py-2">{(b.costPrice || 0).toFixed(2)}</TableCell>
-                            <TableCell className="text-right text-sm py-2 font-medium">{(b.inventoryValue || 0).toLocaleString()}</TableCell>
-                          <TableCell className="py-2"><Badge variant={ss.variant} className="text-xs">{ss.status}</Badge></TableCell>
-                          <TableCell className="text-right py-2 print:hidden">
-                            <Button variant="ghost" size="sm" onClick={() => navigate(`/stock-card/${b.id}`)} className="h-7 text-xs">View Card</Button>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
+                    {sortedBalances.map((b: any, idx: number) => (
+                      <TableRow key={b.id} className={onPage(idx) ? undefined : "hidden print:table-row"}>
+                        <TableCell className="font-mono text-xs">{b.sku}</TableCell>
+                        <TableCell className="font-medium">
+                          <button onClick={() => navigate(`/stock-card/${b.id}`)} className="text-left hover:text-primary hover:underline">{b.name}</button>
+                        </TableCell>
+                        <TableCell>{orDash(b.category?.name)}</TableCell>
+                        <TableCell>{orDash(b.uom)}</TableCell>
+                        <TableCell className="text-right">{formatQty(b.quantity)}</TableCell>
+                        <TableCell className="text-right">{formatMoney(b.costPrice)}</TableCell>
+                        <TableCell className="text-right font-medium">{formatMoney(b.inventoryValue)}</TableCell>
+                        <TableCell><StockStatusBadge quantity={b.quantity ?? 0} isLowStock={b.isLowStock} /></TableCell>
+                        <TableCell className="text-right print:hidden">
+                          <RowActions
+                            actions={[
+                              { label: "Stock card", icon: FileText, onSelect: () => navigate(`/stock-card/${b.id}`) },
+                              { label: "Transfer card", icon: ArrowRightLeft, onSelect: () => navigate(`/transfer-card/${b.id}`) },
+                            ]}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
                   </TableBody>
                   <tfoot className="hidden print:table-footer-group">
                     <TableRow>
                       <TableCell colSpan={6} className="py-2 text-right font-bold text-sm">Total</TableCell>
-                      <TableCell className="py-2 text-right font-bold text-sm">{sortedBalances.reduce((s, b) => s + (b.inventoryValue || 0), 0).toLocaleString()}</TableCell>
+                      <TableCell className="py-2 text-right font-bold text-sm">{formatMoney(shownValue)}</TableCell>
                       <TableCell />
                     </TableRow>
                   </tfoot>
                 </Table>
               </div>
-            )}
-          </CardContent>
+              <Pager {...paged} />
+            </>
+          )}
         </Card>
       </div>
     </Layout>

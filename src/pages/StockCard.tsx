@@ -1,13 +1,16 @@
 import { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { items as itemsApi, normalizeItem } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { PrintHeader, PrintButton } from "@/components/PrintHeader";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, AlertCircle } from "lucide-react";
+import PageHeader from "@/components/app/PageHeader";
+import StatCard from "@/components/app/StatCard";
+import { StockStatusBadge, TxTypeBadge } from "@/components/app/Badges";
+import { formatDate, formatMoney, formatQty, orDash } from "@/lib/format";
+import { ArrowLeft, AlertCircle, ArrowRightLeft, ListOrdered, Package, Wallet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const StockCard = () => {
@@ -53,114 +56,87 @@ const StockCard = () => {
           <div className="text-center">
             <AlertCircle className="w-12 h-12 mx-auto mb-3 text-muted-foreground" />
             <h3 className="text-lg font-semibold mb-2">Item not found</h3>
-            <Button onClick={() => navigate('/items')}>Back to Items</Button>
+            <Button variant="outline" onClick={() => navigate('/items')}>Back to stock items</Button>
           </div>
         </div>
       </Layout>
     );
   }
 
+  const isLow = currentBalance <= (item.low_stock_threshold ?? 10);
+  const dash = <span className="text-muted-foreground">—</span>;
+
   return (
     <Layout>
-      <div className="space-y-4">
-        <PrintHeader title="Stock Card" />
-        <div className="flex items-center justify-between print:hidden">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate('/items')}><ArrowLeft className="w-4 h-4 mr-1" />Back</Button>
-            <div>
-              <h2 className="text-2xl font-bold">Stock Card - Balance Sheet</h2>
-              <p className="text-sm text-muted-foreground">Inventory ledger and balance tracking</p>
-            </div>
-          </div>
-          <PrintButton />
+      <div className="space-y-5">
+        <PrintHeader title="Stock Card" subtitle={`${item.name} • SKU ${item.sku} • ${item.categories?.name || "Uncategorized"}`} />
+        <PageHeader
+          title={item.name}
+          description={`${item.sku} · ${item.categories?.name || "Uncategorized"}`}
+          actions={
+            <>
+              <Button variant="ghost" size="sm" onClick={() => navigate(-1)}><ArrowLeft className="mr-1.5 h-4 w-4" />Back</Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/transfer-card/${item.id}`}><ArrowRightLeft className="mr-1.5 h-4 w-4" />Transfer card</Link>
+              </Button>
+              <PrintButton />
+            </>
+          }
+        />
+
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 print:grid-cols-4 print:gap-2">
+          <StatCard label="Current balance" value={formatQty(currentBalance)} hint={item.uom || undefined} icon={Package} />
+          <StatCard label="Cost price" value={formatMoney(item.cost_price)} icon={Wallet} />
+          <StatCard label="Movements" value={formatQty(movements.length)} icon={ListOrdered} />
+          <StatCard label="Status" value={<StockStatusBadge quantity={currentBalance} isLowStock={isLow} />} />
         </div>
 
-        <Card className="shadow-card">
-          <CardHeader className="pb-3">
-            <div className="flex items-start justify-between">
-              <div>
-                <CardTitle className="text-lg">{item.name}</CardTitle>
-                <CardDescription className="text-sm">
-                  SKU: {item.sku} • Category: {item.categories?.name || "Uncategorized"}
-                </CardDescription>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-bold">{currentBalance}</div>
-                <p className="text-xs text-muted-foreground">Current Balance</p>
-              </div>
+        <Card className="overflow-hidden print:border-0 print:shadow-none">
+          {movements.length === 0 ? (
+            <div className="py-12 text-center">
+              <AlertCircle className="mx-auto mb-2 h-8 w-8 text-muted-foreground/60" />
+              <p className="text-sm text-muted-foreground">No movements recorded for this item yet</p>
             </div>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
-              <div><p className="text-muted-foreground text-xs">Cost Price</p><p className="font-semibold">{Number(item.cost_price || 0).toFixed(2)}</p></div>
-              <div><p className="text-muted-foreground text-xs">Total Movements</p><p className="font-semibold">{movements.length}</p></div>
-              <div>
-                <p className="text-muted-foreground text-xs">Status</p>
-                <Badge variant={currentBalance > 0 ? "secondary" : "destructive"} className="text-xs">
-                  {currentBalance > 0 ? "In Stock" : "Out of Stock"}
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-card">
-          <CardHeader className="pb-3 print:hidden">
-            <CardTitle className="text-base">Stock Ledger</CardTitle>
-            <CardDescription className="text-sm">Detailed inventory movements and balance tracking</CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {movements.length === 0 ? (
-              <div className="text-center py-8">
-                <AlertCircle className="w-10 h-10 mx-auto mb-3 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground">No transactions recorded for this item yet</p>
-              </div>
-            ) : (
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="h-9 text-xs">Date</TableHead>
-                      <TableHead className="h-9 text-xs">Description</TableHead>
-                      <TableHead className="h-9 text-xs">Reference</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Debit (In)</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Credit (Out)</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Balance</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Remaining</TableHead>
-                      <TableHead className="h-9 text-xs text-right">Value</TableHead>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Reference</TableHead>
+                    <TableHead>Party</TableHead>
+                    <TableHead className="text-right">In</TableHead>
+                    <TableHead className="text-right">Out</TableHead>
+                    <TableHead className="whitespace-nowrap text-right">Unit price</TableHead>
+                    <TableHead className="text-right">Balance</TableHead>
+                    <TableHead className="text-right">Remaining</TableHead>
+                    <TableHead className="text-right">Value</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {movements.map((mv, idx) => (
+                    <TableRow key={mv.id || idx}>
+                      <TableCell className="whitespace-nowrap">{formatDate(mv.date)}</TableCell>
+                      <TableCell><TxTypeBadge type={mv.type} /></TableCell>
+                      {/* The reference, and under it the purchase a transfer or sale line drew from */}
+                      <TableCell className="max-w-[200px] print:max-w-none">
+                        <div className="truncate font-mono text-xs print:whitespace-normal" title={mv.reference || undefined}>{orDash(mv.reference)}</div>
+                        {mv.purchaseRef && <div className="truncate text-[11px] text-muted-foreground print:whitespace-normal" title={mv.purchaseRef}>from {mv.purchaseRef}</div>}
+                      </TableCell>
+                      <TableCell className="max-w-[160px] truncate print:max-w-none print:whitespace-normal" title={mv.customerSupplier || undefined}>{orDash(mv.customerSupplier)}</TableCell>
+                      <TableCell className="text-right">{mv.quantityIn > 0 ? formatQty(mv.quantityIn) : dash}</TableCell>
+                      <TableCell className="text-right">{mv.quantityOut > 0 ? formatQty(mv.quantityOut) : dash}</TableCell>
+                      <TableCell className="text-right">{formatMoney(mv.unitPrice)}</TableCell>
+                      <TableCell className="text-right font-semibold">{formatQty(mv.balance)}</TableCell>
+                      <TableCell className="text-right">{mv.type === "purchase" ? formatQty(mv.remaining ?? mv.quantityIn) : dash}</TableCell>
+                      <TableCell className="text-right">{formatMoney((mv.valueIn || 0) - (mv.valueOut || 0))}</TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {movements.map((mv, idx) => (
-                      <TableRow key={mv.id || idx}>
-                        <TableCell className="py-2 text-xs">
-                          {new Date(mv.date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
-                        </TableCell>
-                        <TableCell className="py-2 text-xs">
-                          {mv.type?.charAt(0).toUpperCase() + mv.type?.slice(1)}
-                          {mv.customerSupplier ? ` — ${mv.customerSupplier}` : ''}
-                        </TableCell>
-                        <TableCell className="py-2 font-mono text-xs">{mv.reference}</TableCell>
-                        <TableCell className="py-2 text-right text-xs">
-                          {mv.quantityIn > 0 ? `${mv.quantityIn} @ ${mv.unitPrice}` : '-'}
-                        </TableCell>
-                        <TableCell className="py-2 text-right text-xs">
-                          {mv.quantityOut > 0 ? `${mv.quantityOut} @ ${mv.unitPrice}` : '-'}
-                        </TableCell>
-                        <TableCell className="py-2 text-right font-bold text-sm">{mv.balance}</TableCell>
-                        <TableCell className="py-2 text-right text-xs">
-                          {mv.remaining != null ? mv.remaining : mv.quantityIn > 0 ? mv.quantityIn : '-'}
-                        </TableCell>
-                        <TableCell className="py-2 text-right text-xs">
-                          {(mv.valueIn - mv.valueOut).toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </Card>
       </div>
     </Layout>

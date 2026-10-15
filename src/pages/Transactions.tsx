@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { transactions as txApi, items as itemsApi, categories as categoriesApi, suppliers as suppliersApi, normalizeTransaction, normalizeItem, normalizeCategory, normalizeSubcategory } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -11,14 +11,23 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit, ArrowRightLeft, Search, ArrowLeft, Pencil, Printer } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Plus, Trash2, FileText, Download, Search, ArrowLeft, Pencil, Printer, X } from "lucide-react";
 import { invoicePdf } from "@/lib/invoicePdf";
 import * as XLSX from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import PageHeader from "@/components/app/PageHeader";
+import RowActions from "@/components/app/RowActions";
+import { Pager, usePaged } from "@/components/app/Pager";
+import { TxTypeBadge } from "@/components/app/Badges";
+import { formatDate, formatMoney, formatQty, orDash } from "@/lib/format";
+import { cn } from "@/lib/utils";
+import { partyLabel, TxDetailsBlock, TxLinesTable } from "@/components/app/TransactionBlocks";
 
 type TxType = 'purchase' | 'sale' | 'adjustment' | 'transfer';
+
+// Line editor columns: category, subcategory, item, qty, unit price, line total, remove
+const LINE_GRID = "grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.6fr)_88px_112px_112px_32px] items-center gap-2";
 
 const emptyItem = () => ({ categoryId: "", subcategoryId: "", itemId: "", quantity: "", unitPrice: "", purchaseRef: "" });
 
@@ -32,7 +41,6 @@ const toFormItems = (tx: any) => (tx.items || []).map((li: any) => ({
 }));
 
 const Transactions = () => {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
   const [txList, setTxList] = useState<any[]>([]);
@@ -49,6 +57,8 @@ const Transactions = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [viewTx, setViewTx] = useState<any | null>(null);
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
   const [itemPickerIndex, setItemPickerIndex] = useState(0);
@@ -81,7 +91,7 @@ const Transactions = () => {
 
   useEffect(() => {
     fetchAll();
-  }, [debouncedSearch, typeFilter]);
+  }, [debouncedSearch, typeFilter, startDate, endDate]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -89,6 +99,8 @@ const Transactions = () => {
       const txParams: Record<string, string> = { limit: "500" };
       if (debouncedSearch) txParams.search = debouncedSearch;
       if (typeFilter !== "all") txParams.type = typeFilter;
+      if (startDate) txParams.startDate = startDate;
+      if (endDate) txParams.endDate = endDate;
       const [txRes, itemRes] = await Promise.all([txApi.list(txParams), itemsApi.list({ limit: "500" })]);
       setTxList((txRes.transactions || []).map(normalizeTransaction));
       setItemsList((itemRes.items || []).map(normalizeItem));
@@ -324,216 +336,226 @@ const Transactions = () => {
     ...suppliersList.map((s) => [s.name, s]),
   ].map(([name, data]: [string, any]) => [name, { id: data.id || data._id || null, name, contact: data.contact || "", tinNo: data.tinNo || "" }])).values());
 
+  const lineTotal = (item: { quantity: string; unitPrice: string }) => (parseFloat(item.quantity) || 0) * (parseFloat(item.unitPrice) || 0);
+
   const renderItemRows = (formState: typeof formData, setFormState: (f: any) => void) => {
+    const grandTotal = formState.items.reduce((s, it) => s + lineTotal(it), 0);
     return (
-    <div className="space-y-2">
-      <div className="grid grid-cols-6 gap-2 text-xs font-medium text-muted-foreground">
-        <div>Category</div>
-        <div>Subcategory</div>
-        <div>Item</div>
-        <div>Qty</div>
-        <div>Unit Price</div>
-        <div></div>
-      </div>
-      {formState.items.map((item, index) => (
-        <div key={index} className="grid grid-cols-6 gap-2 items-end">
-          <div>
-            <Select value={item.categoryId} onValueChange={(v) => setFormState({ ...formState, items: updateFormItem(formState, index, 'categoryId', v) })}>
-              <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
-              <SelectContent>{categoriesList.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Select value={item.subcategoryId} onValueChange={(v) => setFormState({ ...formState, items: updateFormItem(formState, index, 'subcategoryId', v) })}>
-              <SelectTrigger><SelectValue placeholder="Subcategory" /></SelectTrigger>
-              <SelectContent>{subcategoriesList.filter((s) => !item.categoryId || s.category_id === item.categoryId).map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div>
-            {formState.type === 'purchase' ? (
-              <Select value={item.itemId || ""} onValueChange={(v) => {
-                const updates = updateFormItem(formState, index, 'itemId', v);
-                setFormState({ ...formState, items: updates });
-              }}>
-                <SelectTrigger><SelectValue placeholder="Select item" /></SelectTrigger>
-                <SelectContent>
-                  {filteredItemsForRow(item.categoryId, item.subcategoryId).map((i) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.sku})</SelectItem>)}
-                </SelectContent>
+    <div className="overflow-x-auto rounded-lg border">
+      <div className="min-w-[760px]">
+        <div className={cn(LINE_GRID, "border-b bg-muted/40 px-3 py-2 text-xs font-medium text-muted-foreground")}>
+          <div>Category</div>
+          <div>Subcategory</div>
+          <div>Item</div>
+          <div className="text-right">Qty</div>
+          <div className="text-right">Unit price</div>
+          <div className="text-right">Line total</div>
+          <div></div>
+        </div>
+        <div className="divide-y">
+          {formState.items.map((item, index) => (
+            <div key={index} className={cn(LINE_GRID, "px-3 py-2")}>
+              <Select value={item.categoryId} onValueChange={(v) => setFormState({ ...formState, items: updateFormItem(formState, index, 'categoryId', v) })}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Category" /></SelectTrigger>
+                <SelectContent>{categoriesList.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
-            ) : (
-              <Button type="button" variant="outline" className="w-full justify-start text-left h-10 font-normal" onClick={() => { setItemPickerIndex(index); setItemPickerForm(formState); setItemPickerSearch(""); setItemPickerOpen(true); }}>
-                {item.itemId ? itemsList.find((i) => i.id === item.itemId)?.name || "Selected" : "Select item"}
+              <Select value={item.subcategoryId} onValueChange={(v) => setFormState({ ...formState, items: updateFormItem(formState, index, 'subcategoryId', v) })}>
+                <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Subcategory" /></SelectTrigger>
+                <SelectContent>{subcategoriesList.filter((s) => !item.categoryId || s.category_id === item.categoryId).map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent>
+              </Select>
+              {formState.type === 'purchase' ? (
+                <Select value={item.itemId || ""} onValueChange={(v) => {
+                  const updates = updateFormItem(formState, index, 'itemId', v);
+                  setFormState({ ...formState, items: updates });
+                }}>
+                  <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Select item" /></SelectTrigger>
+                  <SelectContent>
+                    {filteredItemsForRow(item.categoryId, item.subcategoryId).map((i) => <SelectItem key={i.id} value={i.id}>{i.name} ({i.sku})</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Button type="button" variant="outline" className="h-9 w-full min-w-0 justify-start gap-2 px-3 text-left text-sm font-normal" title={item.purchaseRef ? `From ${item.purchaseRef}` : undefined} onClick={() => { setItemPickerIndex(index); setItemPickerForm(formState); setItemPickerSearch(""); setItemPickerOpen(true); }}>
+                  <span className={cn("truncate", !item.itemId && "text-muted-foreground")}>{item.itemId ? itemsList.find((i) => i.id === item.itemId)?.name || "Selected" : "Select item"}</span>
+                  {item.purchaseRef && <span className="ml-auto shrink-0 truncate font-mono text-[11px] text-muted-foreground max-w-[45%]">{item.purchaseRef}</span>}
+                </Button>
+              )}
+              <Input type="number" step="0.01" value={item.quantity} onChange={(e) => setFormState({ ...formState, items: updateFormItem(formState, index, 'quantity', e.target.value) })} placeholder="0" className="h-9 text-right font-mono tabular-nums" />
+              <Input type="number" step="0.01" value={item.unitPrice} onChange={(e) => setFormState({ ...formState, items: updateFormItem(formState, index, 'unitPrice', e.target.value) })} placeholder="0.00" className="h-9 text-right font-mono tabular-nums" />
+              <div className="text-right font-mono text-sm tabular-nums">{formatMoney(lineTotal(item))}</div>
+              <Button type="button" variant="ghost" size="sm" aria-label="Remove line" title="Remove line" onClick={() => setFormState({ ...formState, items: formState.items.filter((_, i) => i !== index) })} disabled={formState.items.length === 1} className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive">
+                <X className="h-4 w-4" />
               </Button>
-            )}
-          </div>
-          <div>
-            <Input type="number" step="0.01" value={item.quantity} onChange={(e) => setFormState({ ...formState, items: updateFormItem(formState, index, 'quantity', e.target.value) })} placeholder="0" />
-          </div>
-          <div>
-            <Input type="number" step="0.01" value={item.unitPrice} onChange={(e) => setFormState({ ...formState, items: updateFormItem(formState, index, 'unitPrice', e.target.value) })} placeholder="0.00" />
-          </div>
-          <div className="flex items-end gap-0.5 pb-0.5">
-            <Button type="button" variant="ghost" size="sm" onClick={() => setFormState({ ...formState, items: [...formState.items, emptyItem()] })} className="h-9 w-9 p-0">
-              <Plus className="h-4 w-4" />
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => setFormState({ ...formState, items: formState.items.filter((_, i) => i !== index) })} disabled={formState.items.length === 1} className="h-9 w-9 p-0">
-              <Trash2 className="h-3.5 w-3.5 text-destructive" />
-            </Button>
+            </div>
+          ))}
+        </div>
+        <div className="flex items-center justify-between border-t px-3 py-2">
+          <Button type="button" variant="ghost" size="sm" className="h-8" onClick={() => setFormState({ ...formState, items: [...formState.items, emptyItem()] })}>
+            <Plus className="mr-1.5 h-4 w-4" />Add line
+          </Button>
+          <div className="flex items-baseline gap-3 pr-10 text-sm">
+            <span className="text-muted-foreground">Total</span>
+            <span className="font-mono font-semibold tabular-nums">{formatMoney(grandTotal)}</span>
           </div>
         </div>
-      ))}
+      </div>
     </div>
     );
   };
 
+  const paged = usePaged(filteredTxList, 25);
+  const hasFilters = !!(searchTerm || typeFilter !== "all" || startDate || endDate);
+  const clearFilters = () => { setSearchTerm(""); setTypeFilter("all"); setStartDate(""); setEndDate(""); };
+
+  const openTxPicker = async (target: "create" | "edit") => {
+    const res = await txApi.list(target === "create" ? { limit: "500", type: formData.type } : { limit: "500" });
+    setTxPickerAll((res.transactions || []).map(normalizeTransaction));
+    setTxPickerTarget(target); setTxPickerSearch(""); setTxPickerOpen(true);
+  };
+
+  const copyFromButton = (target: "create" | "edit") => (
+    <Button type="button" variant="outline" size="sm" className="h-10 shrink-0" title="Fill this form from an existing transaction" onClick={() => openTxPicker(target)}>Copy from…</Button>
+  );
+
   return (
     <Layout>
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div><h2 className="text-2xl font-bold tracking-tight">Transactions</h2><p className="text-sm text-muted-foreground">Record purchases, sales, and transfers</p></div>
-          <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setFormData(defaultForm); }}>
-            <DialogTrigger asChild><Button size="sm"><Plus className="mr-1.5 h-4 w-4" />New Transaction</Button></DialogTrigger>
-            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader><DialogTitle className="text-lg">Create Transaction</DialogTitle><DialogDescription className="text-sm">Record a new purchase, sale, or transfer</DialogDescription></DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label>Type *</Label>
-                    <Select value={formData.type} onValueChange={(v: TxType) => setFormData({ ...formData, type: v })}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent><SelectItem value="purchase">Purchase</SelectItem><SelectItem value="sale">Sale</SelectItem><SelectItem value="adjustment">Adjustment</SelectItem><SelectItem value="transfer">Transfer</SelectItem></SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1"><Label>Reference Number {formData.type !== 'transfer' ? '*' : ''}</Label>
-                    <div className="flex gap-2">
-                      <Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder={formData.type === 'transfer' ? "Auto-generated if empty" : "e.g., INV-2024-001"} required={formData.type !== 'transfer'} className="flex-1" />
-                       <Button type="button" variant="outline" size="sm" onClick={async () => {
-                         const res = await txApi.list({ limit: "500", type: formData.type });
-                         setTxPickerAll((res.transactions || []).map(normalizeTransaction));
-                         setTxPickerTarget("create"); setTxPickerSearch(""); setTxPickerOpen(true);
-                       }}>Select</Button>
+      <div className="space-y-5">
+        <PageHeader
+          title="Transactions"
+          description="Purchases, sales, transfers and adjustments"
+          actions={
+            <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setFormData(defaultForm); }}>
+              <DialogTrigger asChild><Button size="sm"><Plus className="mr-1.5 h-4 w-4" />New transaction</Button></DialogTrigger>
+              <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+                <DialogHeader><DialogTitle>New transaction</DialogTitle><DialogDescription>Record a purchase, sale, transfer or adjustment</DialogDescription></DialogHeader>
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label>Type</Label>
+                      <Select value={formData.type} onValueChange={(v: TxType) => setFormData({ ...formData, type: v })}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectItem value="purchase">Purchase</SelectItem><SelectItem value="sale">Sale</SelectItem><SelectItem value="adjustment">Adjustment</SelectItem><SelectItem value="transfer">Transfer</SelectItem></SelectContent>
+                      </Select>
                     </div>
+                    <div className="space-y-1.5"><Label>Date</Label><Input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required /></div>
+                    <div className="space-y-1.5">
+                      <Label>Reference{formData.type === 'transfer' && <span className="ml-1 font-normal text-muted-foreground">(optional)</span>}</Label>
+                      <div className="flex gap-2">
+                        <Input value={formData.reference} onChange={(e) => setFormData({ ...formData, reference: e.target.value })} placeholder={formData.type === 'transfer' ? "Generated if empty" : "e.g. INV-2026-001"} required={formData.type !== 'transfer'} className="flex-1 font-mono text-sm" />
+                        {copyFromButton("create")}
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>{partyLabel(formData.type)}</Label>
+                      <Button type="button" variant="outline" className="h-10 w-full min-w-0 justify-start text-left font-normal" onClick={() => setSupplierModalOpen(true)}>
+                        {formData.customerSupplier ? (
+                          <span className="flex min-w-0 items-baseline gap-2">
+                            <span className="truncate">{formData.customerSupplier}</span>
+                            {formData.tinNo && <span className="shrink-0 text-xs text-muted-foreground">TIN {formData.tinNo}</span>}
+                            {formData.contact && <span className="truncate text-xs text-muted-foreground">{formData.contact}</span>}
+                          </span>
+                        ) : <span className="text-muted-foreground">Select or add a {partyLabel(formData.type).toLowerCase()}…</span>}
+                      </Button>
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2"><Label>Notes</Label><Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} /></div>
                   </div>
-                  <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={formData.date} onChange={(e) => setFormData({ ...formData, date: e.target.value })} required /></div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
-                    <Label>{formData.type === 'purchase' ? 'Supplier' : formData.type === 'transfer' ? 'Client/Customer' : 'Customer'} {formData.type !== 'transfer' && '*'}</Label>
-                    <Button type="button" variant="outline" className="w-full justify-start text-left h-9 font-normal" onClick={() => setSupplierModalOpen(true)}>
-                      {formData.customerSupplier ? (
-                        <span>
-                          {formData.customerSupplier}
-                          {formData.tinNo && <span className="text-muted-foreground ml-2 text-xs">TIN: {formData.tinNo}</span>}
-                          {formData.contact && <span className="text-muted-foreground ml-2 text-xs">• {formData.contact}</span>}
-                        </span>
-                      ) : formData.type === 'transfer' ? "Select or create client..." : "Select or create supplier..."}
-                    </Button>
+                    <h4 className="text-sm font-medium">Line items</h4>
+                    {renderItemRows(formData, setFormData)}
                   </div>
-                  <div className="space-y-2"><Label>Notes</Label><Textarea value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} rows={2} /></div>
-                </div>
-                <div className="border-t pt-4">
-                  <div className="flex items-center gap-3 mb-3">
-                    <h4 className="font-semibold">Line Items</h4>
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+                    <Button type="submit" disabled={submitting}>{submitting ? "Creating…" : "Create transaction"}</Button>
                   </div>
-                  {renderItemRows(formData, setFormData)}
-                </div>
-                <div className="flex justify-end gap-2 pt-4">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                  <Button type="submit" disabled={submitting}>{submitting ? "Creating..." : "Create Transaction"}</Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
+                </form>
+              </DialogContent>
+            </Dialog>
+          }
+        />
 
-        {loading ? (
-          <div className="flex items-center justify-center min-h-[40vh]"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>
-        ) : (
-          <Card className="shadow-card">
-            <CardHeader className="pb-3"><CardTitle className="text-base">Transaction History</CardTitle><CardDescription className="text-sm">All purchases, sales, and transfers</CardDescription></CardHeader>
-            <CardContent className="pt-0">
-              <div className="flex flex-col md:flex-row gap-3 mb-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input placeholder="Search reference, customer/supplier..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9" />
-                </div>
-                <div className="flex gap-2">
-                  <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger className="w-[150px]"><SelectValue placeholder="All Types" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="purchase">Purchase</SelectItem>
-                      <SelectItem value="sale">Sale</SelectItem>
-                      <SelectItem value="transfer">Transfer</SelectItem>
-                      <SelectItem value="adjustment">Adjustment</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  {(searchTerm || typeFilter !== "all") && (
-                    <Button variant="ghost" size="sm" onClick={() => { setSearchTerm(""); setTypeFilter("all"); }}>Clear</Button>
-                  )}
-                  <Button variant="outline" size="sm" onClick={exportToExcel}><Download className="mr-1.5 h-4 w-4" />Export</Button>
-                </div>
-              </div>
-              {txList.length === 0 ? (
-                <div className="text-center py-8"><ShoppingCart className="mx-auto h-10 w-10 text-muted-foreground mb-3" /><h3 className="text-base font-semibold mb-1">No transactions yet</h3></div>
-              ) : filteredTxList.length === 0 ? (
-                <div className="text-center py-8"><Search className="mx-auto h-10 w-10 text-muted-foreground mb-3" /><h3 className="text-base font-semibold mb-1">No results found</h3><p className="text-sm text-muted-foreground">Try adjusting your search or filters</p></div>
-              ) : (
-                <div className="border rounded-lg">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="h-9 text-xs">Type</TableHead>
-                        <TableHead className="h-9 text-xs">Reference</TableHead>
-                        <TableHead className="h-9 text-xs">Customer/Supplier</TableHead>
-                        <TableHead className="h-9 text-xs">Date</TableHead>
-                        <TableHead className="h-9 text-xs text-right">Amount</TableHead>
-                        <TableHead className="h-9 text-xs text-right">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredTxList.map((tx) => (
-                        <TableRow key={tx.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setViewTx(tx)}>
-                          <TableCell className="py-2">
-                            <Badge variant={tx.transaction_type === 'purchase' ? 'secondary' : tx.transaction_type === 'transfer' ? 'outline' : 'default'} className="gap-1 text-xs">
-                              {tx.transaction_type === 'purchase' ? <ShoppingCart className="h-3 w-3" /> : tx.transaction_type === 'transfer' ? <ArrowRightLeft className="h-3 w-3" /> : <TrendingUp className="h-3 w-3" />}
-                              {tx.transaction_type?.charAt(0).toUpperCase() + tx.transaction_type?.slice(1)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs py-2">
-                            <span className="hover:text-primary hover:underline">{tx.reference_number}</span>
-                          </TableCell>
-                          <TableCell className="text-sm py-2">{tx.customer_supplier_name}</TableCell>
-                          <TableCell className="text-sm py-2">{new Date(tx.transaction_date).toLocaleDateString()}</TableCell>
-                          <TableCell className="text-right font-semibold text-sm py-2">{tx.total_amount?.toLocaleString()}</TableCell>
-                          <TableCell className="text-right py-2">
-                            <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); generatePDF(tx.id, "print"); }} className="h-7 w-7 p-0" title="Print invoice"><Printer className="h-3.5 w-3.5" /></Button>
-                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); generatePDF(tx.id); }} className="h-7 w-7 p-0" title="Download PDF"><FileText className="h-3.5 w-3.5" /></Button>
-                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openEditDialog(tx); }} className="h-7 w-7 p-0" title="Edit"><Edit className="h-3.5 w-3.5" /></Button>
-                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setDeleteId(tx.id); }} className="h-7 w-7 p-0" title="Delete"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
+        <Card className="overflow-hidden">
+          <div className="flex flex-wrap items-center gap-2 border-b p-3">
+            <div className="relative min-w-[200px] flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search reference or party" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="h-9 pl-9" />
+            </div>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="h-9 w-[140px]"><SelectValue placeholder="All types" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All types</SelectItem>
+                <SelectItem value="purchase">Purchase</SelectItem>
+                <SelectItem value="sale">Sale</SelectItem>
+                <SelectItem value="transfer">Transfer</SelectItem>
+                <SelectItem value="adjustment">Adjustment</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="tx-from" className="text-xs font-normal text-muted-foreground">From</Label>
+              <Input id="tx-from" type="date" value={startDate} max={endDate || undefined} onChange={(e) => setStartDate(e.target.value)} className="h-9 w-[150px]" />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="tx-to" className="text-xs font-normal text-muted-foreground">To</Label>
+              <Input id="tx-to" type="date" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} className="h-9 w-[150px]" />
+            </div>
+            {hasFilters && <Button variant="ghost" size="sm" className="h-9" onClick={clearFilters}>Clear</Button>}
+            <Button variant="outline" size="sm" className="h-9" onClick={exportToExcel}><Download className="mr-1.5 h-4 w-4" />Export</Button>
+          </div>
+
+          {loading ? (
+            <div className="flex min-h-[30vh] items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div></div>
+          ) : filteredTxList.length === 0 ? (
+            <div className="py-14 text-center">
+              {hasFilters ? <Search className="mx-auto mb-3 h-8 w-8 text-muted-foreground/60" /> : <FileText className="mx-auto mb-3 h-8 w-8 text-muted-foreground/60" />}
+              <p className="text-sm font-medium">{hasFilters ? "No matching transactions" : "No transactions yet"}</p>
+              {hasFilters && <p className="mt-1 text-sm text-muted-foreground">Try a different search or date range</p>}
+            </div>
+          ) : (
+            <>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Reference</TableHead>
+                    <TableHead>Customer / supplier</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="w-10"><span className="sr-only">Actions</span></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paged.slice.map((tx) => (
+                    <TableRow key={tx.id} className="cursor-pointer" onClick={() => setViewTx(tx)}>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(tx.transaction_date)}</TableCell>
+                      <TableCell><TxTypeBadge type={tx.transaction_type} /></TableCell>
+                      <TableCell className="max-w-[260px]"><span className="block truncate font-mono text-xs" title={tx.reference_number}>{tx.reference_number}</span></TableCell>
+                      <TableCell className="max-w-[240px]"><span className="block truncate" title={tx.customer_supplier_name || undefined}>{orDash(tx.customer_supplier_name)}</span></TableCell>
+                      <TableCell className="text-right font-medium">{formatMoney(tx.total_amount)}</TableCell>
+                      <TableCell className="w-10 py-1 pr-2" onClick={(e) => e.stopPropagation()}>
+                        <RowActions actions={[
+                          { label: "Print invoice", icon: Printer, onSelect: () => generatePDF(tx.id, "print") },
+                          { label: "Download PDF", icon: FileText, onSelect: () => generatePDF(tx.id) },
+                          { label: "Edit", icon: Pencil, onSelect: () => openEditDialog(tx) },
+                          { label: "Delete", icon: Trash2, onSelect: () => setDeleteId(tx.id), danger: true },
+                        ]} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <Pager {...paged} />
+            </>
+          )}
+        </Card>
       </div>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Transaction</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete the transaction and reverse all stock changes.</AlertDialogDescription>
+            <AlertDialogTitle>Delete transaction?</AlertDialogTitle>
+            <AlertDialogDescription>This permanently deletes the transaction and reverses its stock changes.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteId && handleDelete(deleteId)}>Delete</AlertDialogAction>
+            <AlertDialogAction onClick={() => deleteId && handleDelete(deleteId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -541,42 +563,38 @@ const Transactions = () => {
       <Dialog open={editDialogOpen} onOpenChange={(open) => { setEditDialogOpen(open); if (!open) setEditingTx(null); }}>
         <DialogContent className={canEditLines ? "max-w-5xl max-h-[90vh] overflow-y-auto" : "max-w-xl"}>
           <DialogHeader>
-            <DialogTitle className="text-lg">{canEditLines ? "Edit Transfer" : "Edit Transaction Metadata"}</DialogTitle>
-            <DialogDescription className="text-sm">
+            <DialogTitle>{canEditLines ? "Edit transfer" : "Edit transaction"}</DialogTitle>
+            <DialogDescription>
               {canEditLines
-                ? "Update details and line items. The old quantities go back into stock and the new ones are taken out."
+                ? "Old quantities go back into stock and the new ones are taken out."
                 : editingTx?.transaction_type === 'transfer'
-                  ? "Update reference, contact, and notes (only an admin can change the line items)"
-                  : "Update reference, contact, and notes (line items cannot be changed — delete and recreate instead)"}
+                  ? "Only an admin can change the line items of a transfer."
+                  : "Line items can't be changed. Delete and recreate the transaction instead."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleEditSubmit} className="space-y-3">
-            <div className="space-y-1"><Label>Reference Number *</Label>
-              <div className="flex gap-2">
-                <Input value={editFormData.reference} onChange={(e) => setEditFormData({ ...editFormData, reference: e.target.value })} required className="flex-1" />
-                <Button type="button" variant="outline" size="sm" onClick={async () => {
-                  const res = await txApi.list({ limit: "500" });
-                  setTxPickerAll((res.transactions || []).map(normalizeTransaction));
-                  setTxPickerTarget("edit"); setTxPickerSearch(""); setTxPickerOpen(true);
-                }}>Select</Button>
+          <form onSubmit={handleEditSubmit} className="space-y-5">
+            <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+              <div className="space-y-1.5"><Label>Reference</Label>
+                <div className="flex gap-2">
+                  <Input value={editFormData.reference} onChange={(e) => setEditFormData({ ...editFormData, reference: e.target.value })} required className="flex-1 font-mono text-sm" />
+                  {copyFromButton("edit")}
+                </div>
               </div>
+              <div className="space-y-1.5"><Label>Date</Label><Input type="date" value={editFormData.date} onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })} required /></div>
+              <div className="space-y-1.5"><Label>{partyLabel(editFormData.type)}</Label><Input value={editFormData.customerSupplier} onChange={(e) => setEditFormData({ ...editFormData, customerSupplier: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label>TIN</Label><Input value={editFormData.tinNo} onChange={(e) => setEditFormData({ ...editFormData, tinNo: e.target.value })} placeholder="Tax ID" /></div>
+              <div className="space-y-1.5"><Label>Contact</Label><Input value={editFormData.contact} onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })} /></div>
+              <div className="space-y-1.5 sm:col-span-2"><Label>Notes</Label><Textarea value={editFormData.notes} onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })} rows={2} /></div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Transaction Date *</Label><Input type="date" value={editFormData.date} onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })} required /></div>
-              <div className="space-y-1"><Label>Contact</Label><Input value={editFormData.contact} onChange={(e) => setEditFormData({ ...editFormData, contact: e.target.value })} /></div>
-            </div>
-            <div className="space-y-1"><Label>Customer/Supplier</Label><Input value={editFormData.customerSupplier} onChange={(e) => setEditFormData({ ...editFormData, customerSupplier: e.target.value })} /></div>
-            <div className="space-y-1"><Label>TIN No</Label><Input value={editFormData.tinNo} onChange={(e) => setEditFormData({ ...editFormData, tinNo: e.target.value })} placeholder="Tax ID" /></div>
-            <div className="space-y-1"><Label>Notes</Label><Textarea value={editFormData.notes} onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })} rows={2} /></div>
             {canEditLines && (
-              <div className="border-t pt-4">
-                <h4 className="font-semibold mb-3">Line Items</h4>
+              <div className="space-y-2">
+                <h4 className="text-sm font-medium">Line items</h4>
                 {renderItemRows(editFormData, setEditFormData)}
               </div>
             )}
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setEditDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={submitting}>{submitting ? "Updating..." : "Update"}</Button>
+              <Button type="submit" disabled={submitting}>{submitting ? "Saving…" : "Save changes"}</Button>
             </div>
           </form>
         </DialogContent>
@@ -585,23 +603,22 @@ const Transactions = () => {
       <Dialog open={txPickerOpen} onOpenChange={(open) => { if (!open) setTxPickerOpen(false); }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg">Select {txPickerTarget === "create" ? formData.type?.charAt(0).toUpperCase() + formData.type?.slice(1) : "Transaction"} Reference</DialogTitle>
-            <DialogDescription>Search by reference number, customer/supplier, or type</DialogDescription>
+            <DialogTitle>Copy from a transaction</DialogTitle>
+            <DialogDescription>{txPickerTarget === "create" ? "Fills the reference, party, date and lines" : "Fills the reference and party"}</DialogDescription>
           </DialogHeader>
-          <div className="relative mb-3">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search reference, customer, type..." value={txPickerSearch} onChange={(e) => setTxPickerSearch(e.target.value)} className="pl-9" autoFocus />
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input placeholder="Search reference, party or type" value={txPickerSearch} onChange={(e) => setTxPickerSearch(e.target.value)} className="h-9 pl-9" autoFocus />
           </div>
-          <div className="border rounded-lg max-h-[50vh] overflow-y-auto">
+          <div className="max-h-[50vh] overflow-y-auto rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="h-8 text-xs">Type</TableHead>
-                  <TableHead className="h-8 text-xs">Reference</TableHead>
-                  <TableHead className="h-8 text-xs">Customer/Supplier</TableHead>
-                  <TableHead className="h-8 text-xs">Date</TableHead>
-                  <TableHead className="h-8 text-xs text-right">Amount</TableHead>
-                  <TableHead className="h-8 text-xs text-right">Action</TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Reference</TableHead>
+                  <TableHead>Customer / supplier</TableHead>
+                  <TableHead className="text-right">Amount</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -613,9 +630,9 @@ const Transactions = () => {
                       || tx.customer_supplier_name?.toLowerCase().includes(t)
                       || tx.transaction_type?.toLowerCase().includes(t);
                   });
-                  if (filtered.length === 0) return <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">No transactions found</TableCell></TableRow>;
+                  if (filtered.length === 0) return <TableRow className="hover:bg-transparent"><TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">No transactions found</TableCell></TableRow>;
                   return filtered.map((tx) => (
-                    <TableRow key={tx.id} className="cursor-pointer hover:bg-muted/50" onClick={() => {
+                    <TableRow key={tx.id} className="cursor-pointer" onClick={() => {
                       const txItems = (tx.items || []).map((li: any) => ({
                         categoryId: li.items?.category_id || "",
                         subcategoryId: li.items?.subcategory_id || "",
@@ -644,16 +661,11 @@ const Transactions = () => {
                       }
                       setTxPickerOpen(false);
                     }}>
-                      <TableCell className="py-2">
-                        <Badge variant={tx.transaction_type === 'purchase' ? 'secondary' : tx.transaction_type === 'transfer' ? 'outline' : 'default'} className="gap-1 text-xs">
-                          {tx.transaction_type?.charAt(0).toUpperCase() + tx.transaction_type?.slice(1)}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-mono text-xs py-2">{tx.reference_number}</TableCell>
-                      <TableCell className="text-sm py-2">{tx.customer_supplier_name}</TableCell>
-                      <TableCell className="text-sm py-2">{new Date(tx.transaction_date).toLocaleDateString()}</TableCell>
-                      <TableCell className="text-right text-sm py-2 font-medium">{tx.total_amount?.toLocaleString()}</TableCell>
-                      <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(tx.transaction_date)}</TableCell>
+                      <TableCell><TxTypeBadge type={tx.transaction_type} /></TableCell>
+                      <TableCell className="max-w-[220px]"><span className="block truncate font-mono text-xs" title={tx.reference_number}>{tx.reference_number}</span></TableCell>
+                      <TableCell className="max-w-[180px]"><span className="block truncate">{orDash(tx.customer_supplier_name)}</span></TableCell>
+                      <TableCell className="text-right">{formatMoney(tx.total_amount)}</TableCell>
                     </TableRow>
                   ));
                 })()}
@@ -666,44 +678,43 @@ const Transactions = () => {
       <Dialog open={itemPickerOpen} onOpenChange={(open) => { if (!open) { setItemPickerOpen(false); setItemPickerSelected(null); setItemPickerStockCard([]); } }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg">{itemPickerSelected ? `${itemPickerSelected.name} — Purchase History` : "Select Item"}</DialogTitle>
-            <DialogDescription>{itemPickerSelected ? "Choose a specific purchase to reference" : "Search and choose an item for this line"}</DialogDescription>
+            <DialogTitle>{itemPickerSelected ? itemPickerSelected.name : "Select item"}</DialogTitle>
+            <DialogDescription>{itemPickerSelected ? "Choose the purchase this line draws from" : "Search and choose an item for this line"}</DialogDescription>
           </DialogHeader>
           {itemPickerSelected ? (
             <>
-              <Button variant="ghost" size="sm" className="mb-2 w-fit" onClick={() => { setItemPickerSelected(null); setItemPickerStockCard([]); }}>
-                <ArrowLeft className="h-4 w-4 mr-1" />Back to items
+              <Button variant="ghost" size="sm" className="w-fit -ml-2" onClick={() => { setItemPickerSelected(null); setItemPickerStockCard([]); }}>
+                <ArrowLeft className="mr-1 h-4 w-4" />Back to items
               </Button>
               {itemPickerStockLoading ? (
-                <div className="flex items-center justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div></div>
+                <div className="flex items-center justify-center py-8"><div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary"></div></div>
               ) : itemPickerStockCard.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-sm text-muted-foreground mb-3">No purchase history found for this item</p>
+                <div className="py-8 text-center">
+                  <p className="mb-3 text-sm text-muted-foreground">No purchase history for this item</p>
                   <Button variant="outline" size="sm" onClick={() => {
                     const newItems = [...itemPickerForm.items];
                     newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(itemPickerSelected.quantity ?? ""), unitPrice: String(itemPickerSelected.cost_price || itemPickerSelected.unit_price || ""), purchaseRef: "" };
                     applyPickedItems(newItems);
                     setItemPickerOpen(false);
                     setItemPickerSelected(null);
-                  }}>Select without purchase reference</Button>
+                  }}>Use without a purchase reference</Button>
                 </div>
               ) : (
-                <div className="border rounded-lg max-h-[50vh] overflow-y-auto">
+                <div className="max-h-[50vh] overflow-y-auto rounded-lg border">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="h-8 text-xs">Date</TableHead>
-                        <TableHead className="h-8 text-xs">Reference</TableHead>
-                        <TableHead className="h-8 text-xs">Supplier</TableHead>
-                        <TableHead className="h-8 text-xs text-right">Purchased Qty</TableHead>
-                        <TableHead className="h-8 text-xs text-right">Unit Price</TableHead>
-                        <TableHead className="h-8 text-xs text-right">Remaining</TableHead>
-                        <TableHead className="h-8 text-xs text-right">Action</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Reference</TableHead>
+                        <TableHead>Supplier</TableHead>
+                        <TableHead className="text-right">Purchased</TableHead>
+                        <TableHead className="text-right">Unit price</TableHead>
+                        <TableHead className="text-right">Remaining</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {itemPickerStockCard.filter((mv) => mv.quantityIn > 0 && (mv.remaining ?? mv.quantityIn) > 0).map((mv, idx) => (
-                        <TableRow key={mv.id || idx} className="cursor-pointer hover:bg-muted/50" onClick={() => {
+                        <TableRow key={mv.id || idx} className="cursor-pointer" onClick={() => {
                           const newItems = [...itemPickerForm.items];
                           newItems[itemPickerIndex] = { ...newItems[itemPickerIndex], itemId: itemPickerSelected.id, quantity: String(mv.remaining ?? mv.quantity ?? mv.quantityIn), unitPrice: String(mv.unitPrice), purchaseRef: mv.reference || "" };
                           applyPickedItems(newItems);
@@ -711,13 +722,12 @@ const Transactions = () => {
                           setItemPickerSelected(null);
                           setItemPickerStockCard([]);
                         }}>
-                          <TableCell className="text-xs py-2">{new Date(mv.date).toLocaleDateString()}</TableCell>
-                          <TableCell className="font-mono text-xs py-2">{mv.reference || '-'}</TableCell>
-                          <TableCell className="text-xs py-2">{mv.customerSupplier || '-'}</TableCell>
-                          <TableCell className="text-right text-xs py-2 font-medium">{mv.quantity ?? mv.quantityIn}</TableCell>
-                          <TableCell className="text-right text-xs py-2">{mv.unitPrice?.toFixed(2)}</TableCell>
-                          <TableCell className="text-right text-xs py-2">{mv.remaining ?? mv.balance}</TableCell>
-                          <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
+                          <TableCell className="whitespace-nowrap text-muted-foreground">{formatDate(mv.date)}</TableCell>
+                          <TableCell className="max-w-[200px]"><span className="block truncate font-mono text-xs" title={mv.reference || undefined}>{orDash(mv.reference)}</span></TableCell>
+                          <TableCell className="max-w-[160px]"><span className="block truncate">{orDash(mv.customerSupplier)}</span></TableCell>
+                          <TableCell className="text-right">{formatQty(mv.quantity ?? mv.quantityIn)}</TableCell>
+                          <TableCell className="text-right">{formatMoney(mv.unitPrice)}</TableCell>
+                          <TableCell className="text-right font-medium">{(mv.remaining ?? mv.balance) == null ? "—" : formatQty(mv.remaining ?? mv.balance)}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -727,20 +737,19 @@ const Transactions = () => {
             </>
           ) : (
             <>
-              <div className="relative mb-3">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search by name, SKU, category..." value={itemPickerSearch} onChange={(e) => setItemPickerSearch(e.target.value)} className="pl-9" autoFocus />
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input placeholder="Search name, SKU or category" value={itemPickerSearch} onChange={(e) => setItemPickerSearch(e.target.value)} className="h-9 pl-9" autoFocus />
               </div>
-              <div className="border rounded-lg max-h-[50vh] overflow-y-auto">
+              <div className="max-h-[50vh] overflow-y-auto rounded-lg border">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="h-8 text-xs">Name</TableHead>
-                      <TableHead className="h-8 text-xs">SKU</TableHead>
-                      <TableHead className="h-8 text-xs">Category</TableHead>
-                      <TableHead className="h-8 text-xs text-right">Qty</TableHead>
-                      <TableHead className="h-8 text-xs text-right">Cost Price</TableHead>
-                      <TableHead className="h-8 text-xs text-right">Action</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>SKU</TableHead>
+                      <TableHead>Category</TableHead>
+                      <TableHead className="text-right">In stock</TableHead>
+                      <TableHead className="text-right">Cost price</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -755,9 +764,9 @@ const Transactions = () => {
                         })();
                         return matchCat && matchSub && matchSearch;
                       });
-                      if (filtered.length === 0) return <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">No items found</TableCell></TableRow>;
+                      if (filtered.length === 0) return <TableRow className="hover:bg-transparent"><TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">No items found</TableCell></TableRow>;
                       return filtered.map((inv) => (
-                        <TableRow key={inv.id} className="cursor-pointer hover:bg-muted/50" onClick={async () => {
+                        <TableRow key={inv.id} className="cursor-pointer" onClick={async () => {
                           setItemPickerSelected(inv);
                           setItemPickerStockLoading(true);
                           try {
@@ -769,12 +778,11 @@ const Transactions = () => {
                             setItemPickerStockLoading(false);
                           }
                         }}>
-                          <TableCell className="text-sm py-2 font-medium">{inv.name}</TableCell>
-                          <TableCell className="font-mono text-sm py-2">{inv.sku}</TableCell>
-                          <TableCell className="text-sm py-2">{inv.categories?.name || '-'}</TableCell>
-                          <TableCell className="text-right text-sm py-2">{inv.quantity}</TableCell>
-                          <TableCell className="text-right text-sm py-2">{(inv.cost_price || 0).toFixed(2)}</TableCell>
-                          <TableCell className="text-right py-2"><Button variant="ghost" size="sm" className="h-7 text-xs">Select</Button></TableCell>
+                          <TableCell className="font-medium">{inv.name}</TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">{orDash(inv.sku)}</TableCell>
+                          <TableCell className="text-muted-foreground">{orDash(inv.categories?.name)}</TableCell>
+                          <TableCell className="text-right">{formatQty(inv.quantity)}</TableCell>
+                          <TableCell className="text-right">{formatMoney(inv.cost_price)}</TableCell>
                         </TableRow>
                       ));
                     })()}
@@ -787,78 +795,26 @@ const Transactions = () => {
       </Dialog>
 
       <Dialog open={!!viewTx} onOpenChange={(open) => { if (!open) setViewTx(null); }}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           {viewTx && (
             <>
               <DialogHeader>
-                <DialogTitle className="text-lg flex items-center gap-2">
-                  {viewTx.transaction_type === 'purchase' ? <ShoppingCart className="h-5 w-5" /> : viewTx.transaction_type === 'transfer' ? <ArrowRightLeft className="h-5 w-5" /> : <TrendingUp className="h-5 w-5" />}
-                  {viewTx.transaction_type?.charAt(0).toUpperCase() + viewTx.transaction_type?.slice(1)} Details
-                </DialogTitle>
-                <DialogDescription>Reference: {viewTx.reference_number}</DialogDescription>
+                <DialogTitle className="flex items-center gap-2.5">Transaction details <TxTypeBadge type={viewTx.transaction_type} /></DialogTitle>
+                <DialogDescription className="break-all font-mono text-xs">{viewTx.reference_number}</DialogDescription>
               </DialogHeader>
 
-              <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="space-y-2">
-                  <div><span className="font-medium text-muted-foreground">Reference:</span> <span className="ml-2">{viewTx.reference_number}</span></div>
-                  <div><span className="font-medium text-muted-foreground">Date:</span> <span className="ml-2">{new Date(viewTx.transaction_date).toLocaleDateString()}</span></div>
-                  <div><span className="font-medium text-muted-foreground">{viewTx.transaction_type === 'purchase' ? 'Supplier' : viewTx.transaction_type === 'transfer' ? 'Client/Customer' : 'Customer'}:</span> <span className="ml-2">{viewTx.customer_supplier_name}</span></div>
-                  {viewTx.customer_supplier_contact && <div><span className="font-medium text-muted-foreground">Contact:</span> <span className="ml-2">{viewTx.customer_supplier_contact}</span></div>}
-                  {viewTx.tin_no && <div><span className="font-medium text-muted-foreground">TIN Number:</span> <span className="ml-2 font-mono">{viewTx.tin_no}</span></div>}
-                  {viewTx.notes && <div><span className="font-medium text-muted-foreground">Notes:</span> <span className="ml-2">{viewTx.notes}</span></div>}
-                  <div><span className="font-medium text-muted-foreground">Created:</span> <span className="ml-2">{viewTx.created_at ? new Date(viewTx.created_at).toLocaleString() : '-'}</span></div>
-                </div>
-                <div className="text-right space-y-1">
-                  <div className="text-lg font-bold">{viewTx.total_amount?.toLocaleString()}</div>
-                  <p className="text-xs text-muted-foreground">{viewTx.items?.length || 0} item(s)</p>
-                  {viewTx.transaction_type === 'sale' && (
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Profit: </span>
-                      <span className={`font-bold ${viewTx.items?.reduce((s: number, li: any) => s + (li.profit || 0), 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {viewTx.items?.reduce((s: number, li: any) => s + (li.profit || 0), 0).toLocaleString()}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
+              <TxDetailsBlock tx={viewTx} />
 
               {viewTx.items?.length > 0 && (
-                <div className="border rounded-lg mt-4">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="h-8 text-xs">Item</TableHead>
-                        <TableHead className="h-8 text-xs">SKU</TableHead>
-                        <TableHead className="h-8 text-xs text-right">Qty</TableHead>
-                        <TableHead className="h-8 text-xs text-right">Unit Price</TableHead>
-                        <TableHead className="h-8 text-xs text-right">Total</TableHead>
-                        {viewTx.transaction_type === 'sale' && <TableHead className="h-8 text-xs text-right">Profit</TableHead>}
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {viewTx.items.map((li: any) => (
-                        <TableRow key={li.id}>
-                          <TableCell className="text-sm py-2 font-medium">{li.items?.name || 'Unknown'}</TableCell>
-                          <TableCell className="font-mono text-sm py-2">{li.items?.sku || 'N/A'}</TableCell>
-                          <TableCell className="text-right text-sm py-2">{li.quantity}</TableCell>
-                           <TableCell className="text-right text-sm py-2">{li.unit_price?.toFixed(2)}</TableCell>
-                           <TableCell className="text-right text-sm py-2 font-semibold">{li.total_price?.toFixed(2)}</TableCell>
-                          {viewTx.transaction_type === 'sale' && (
-                            <TableCell className="text-right text-sm py-2">
-                              <Badge variant={(li.profit || 0) >= 0 ? "default" : "destructive"}>{(li.profit || 0).toFixed(2)}</Badge>
-                            </TableCell>
-                          )}
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                <div className="overflow-hidden rounded-lg border">
+                  <TxLinesTable tx={viewTx} />
                 </div>
               )}
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => generatePDF(viewTx.id, "print")}><Printer className="mr-1.5 h-4 w-4" />Print</Button>
                 <Button variant="outline" size="sm" onClick={() => generatePDF(viewTx.id)}><FileText className="mr-1.5 h-4 w-4" />PDF</Button>
-                <Button variant="outline" size="sm" onClick={() => { setViewTx(null); openEditDialog(viewTx); }}><Edit className="mr-1.5 h-4 w-4" />Edit</Button>
+                <Button variant="outline" size="sm" onClick={() => { setViewTx(null); openEditDialog(viewTx); }}><Pencil className="mr-1.5 h-4 w-4" />Edit</Button>
                 <Button variant="outline" size="sm" onClick={() => setViewTx(null)}>Close</Button>
               </div>
             </>
@@ -869,13 +825,13 @@ const Transactions = () => {
       <Dialog open={supplierModalOpen} onOpenChange={setSupplierModalOpen}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-lg">{formData.type === 'purchase' ? 'Select Supplier' : 'Select Client/Customer'}</DialogTitle>
-            <DialogDescription>{formData.type === 'purchase' ? 'Choose an existing supplier or create a new one' : 'Choose an existing client or create a new one'}</DialogDescription>
+            <DialogTitle>Select {partyLabel(formData.type).toLowerCase()}</DialogTitle>
+            <DialogDescription>Choose one or add a new {partyLabel(formData.type).toLowerCase()}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search suppliers..." id="supplier-modal-search" className="pl-9" onChange={(e) => {
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input placeholder="Search by name" id="supplier-modal-search" className="h-9 pl-9" onChange={(e) => {
                 const val = e.target.value.toLowerCase();
                 document.querySelectorAll('[data-supplier-row]').forEach((row) => {
                   const name = (row as HTMLElement).dataset.supplierName || "";
@@ -883,15 +839,15 @@ const Transactions = () => {
                 });
               }} />
             </div>
-            <div className="border rounded-lg max-h-[30vh] overflow-y-auto">
+            <div className="max-h-[30vh] divide-y overflow-y-auto rounded-lg border">
               {uniqueSuppliers.length === 0 ? (
-                <p className="text-center py-6 text-sm text-muted-foreground">No suppliers found. Create one below.</p>
+                <p className="py-6 text-center text-sm text-muted-foreground">Nothing here yet. Add one below.</p>
               ) : uniqueSuppliers.map((s) => (
                 <div
                   key={s.name}
                   data-supplier-row
                   data-supplier-name={s.name}
-                  className="px-3 py-2 border-b last:border-b-0"
+                  className="px-3 py-2"
                 >
                   {editingSupplier?.name === s.name ? (
                     <div className="space-y-2">
@@ -906,24 +862,26 @@ const Transactions = () => {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2">
                       <div
-                        className="flex-1 cursor-pointer hover:text-primary"
+                        className="min-w-0 flex-1 cursor-pointer hover:text-primary"
                         onClick={() => {
                           setFormData({ ...formData, customerSupplier: s.name, tinNo: s.tinNo || "", contact: s.contact || "" });
                           setSupplierModalOpen(false);
                         }}
                       >
-                        <div className="font-medium text-sm">{s.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {s.tinNo ? `TIN: ${s.tinNo}` : ""}{s.tinNo && s.contact ? " • " : ""}{s.contact || ""}
-                        </div>
+                        <div className="truncate text-sm font-medium">{s.name}</div>
+                        {(s.tinNo || s.contact) && (
+                          <div className="truncate text-xs text-muted-foreground">
+                            {s.tinNo ? `TIN ${s.tinNo}` : ""}{s.tinNo && s.contact ? " · " : ""}{s.contact || ""}
+                          </div>
+                        )}
                       </div>
                       <div className="flex items-center gap-1">
-                        {formData.customerSupplier === s.name && <Badge variant="default" className="text-xs mr-1">Selected</Badge>}
-                        <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={async (e) => {
+                        {formData.customerSupplier === s.name && <Badge variant="success" className="mr-1">Selected</Badge>}
+                        <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground" aria-label="Edit" title="Edit" onClick={async (e) => {
                           e.stopPropagation();
-                          let supplierId = s.id || s._id;
+                          let supplierId = s.id;
                           if (!supplierId) {
                             try {
                               const res = await suppliersApi.create({ name: s.name, tin_no: s.tinNo || "", contact: s.contact || "" });
@@ -945,15 +903,15 @@ const Transactions = () => {
                 </div>
               ))}
             </div>
-            <div className="border-t pt-4">
-              <h4 className="font-semibold text-sm mb-2">Create New Supplier</h4>
+            <div className="space-y-2 border-t pt-4">
+              <h4 className="text-sm font-medium">New {partyLabel(formData.type).toLowerCase()}</h4>
               <div className="grid grid-cols-3 gap-2">
-                <Input placeholder="Supplier name *" value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} />
-                <Input placeholder="TIN No" value={newSupplierTin} onChange={(e) => setNewSupplierTin(e.target.value)} />
+                <Input placeholder="Name" value={newSupplierName} onChange={(e) => setNewSupplierName(e.target.value)} />
+                <Input placeholder="TIN" value={newSupplierTin} onChange={(e) => setNewSupplierTin(e.target.value)} />
                 <Input placeholder="Contact" value={newSupplierContact} onChange={(e) => setNewSupplierContact(e.target.value)} />
               </div>
-              <div className="flex justify-end mt-2">
-                <Button type="button" size="sm" onClick={handleCreateAndSelectSupplier} disabled={!newSupplierName.trim()}>Create & Select</Button>
+              <div className="flex justify-end">
+                <Button type="button" size="sm" onClick={handleCreateAndSelectSupplier} disabled={!newSupplierName.trim()}>Add and select</Button>
               </div>
             </div>
           </div>

@@ -54,8 +54,8 @@ All colors MUST be HSL.
     --shadow-card: 0 1px 1px rgb(9 9 11 / 0.03);
 
     --chart-1: 142 76% 36%;
-    --chart-2: 142 76% 36%;
-    --chart-3: 200 100% 45%;
+    --chart-2: 24 85% 52%;
+    --chart-3: 212 80% 50%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 82% 52%;
   }
@@ -97,8 +97,8 @@ All colors MUST be HSL.
     --shadow-card: 0 4px 6px -1px hsl(0 0% 0% / 0.3);
 
     --chart-1: 142 76% 36%;
-    --chart-2: 142 76% 36%;
-    --chart-3: 200 100% 45%;
+    --chart-2: 24 85% 52%;
+    --chart-3: 212 80% 50%;
     --chart-4: 280 65% 60%;
     --chart-5: 340 82% 52%;
   }
