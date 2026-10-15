@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import { autoTable } from "jspdf-autotable";
+import { transactions as txApi, normalizeTransaction } from "@/lib/api";
 
 // Brand green (--primary) and the greys used across the documents
 const GREEN: [number, number, number] = [22, 163, 74];
@@ -23,14 +24,41 @@ const qty = (n: number) => (n || 0).toLocaleString("en-US", { maximumFractionDig
 const day = (d: string) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "-");
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
 
-// The reference each line draws on: its own purchase reference when it has one. Older transfers only
-// list them after the slash in the transaction reference ("TRF-1/PO-1,PO-2"), in line order.
-function lineReferences(tx: any): string[] {
+// The purchase each line draws on. Newer lines record it; for older transfers and sales it is
+// found among the purchases of that line's item, as the one whose number appears in the
+// transaction's reference (e.g. "CRV-31/BBF,LC-4-015411/Jv-264/18,..."). Purchase numbers can
+// themselves contain "/" and ",", so this matches whole numbers rather than splitting the text.
+// Purchases and adjustments are their own reference.
+async function lineReferences(tx: any): Promise<string[]> {
   const lines = tx.items || [];
-  const [base, ...rest] = String(tx.reference_number || "").split("/");
-  const listed = rest.join("/").split(",").map((r) => r.trim()).filter(Boolean);
-  return lines.map((li: any, i: number) =>
-    li.purchaseRef || (listed.length === lines.length ? listed[i] : "") || base || "-");
+  const ownRef = String(tx.reference_number || "");
+  if (tx.transaction_type !== "transfer" && tx.transaction_type !== "sale") return lines.map(() => ownRef || "-");
+
+  const itemIdOf = (li: any) => String(li.item_id || li.items?.id || li.item?._id || "");
+  const lookup = [...new Set(lines.filter((li: any) => !li.purchaseRef).map(itemIdOf).filter(Boolean))] as string[];
+  const purchasesOf: Record<string, any[]> = {};
+  await Promise.all(lookup.map(async (id) => {
+    const res = await txApi.list({ type: "purchase", itemId: id, limit: "1000" });
+    purchasesOf[id] = (res.transactions || []).map(normalizeTransaction);
+  }));
+
+  return lines.map((li: any) => {
+    if (li.purchaseRef) return li.purchaseRef;
+    // Longest match wins, so "FS-1" never claims a reference that really lists "FS-10"
+    const named = (purchasesOf[itemIdOf(li)] || [])
+      .map((p) => String(p.reference_number || ""))
+      .filter((ref) => ref && ownRef.includes(ref))
+      .sort((a, b) => b.length - a.length);
+    return named[0] || "-";
+  });
+}
+
+// Shortens text with an ellipsis until it fits maxW at the current font size
+function fitText(doc: jsPDF, text: string, maxW: number) {
+  if (doc.getTextWidth(text) <= maxW) return text;
+  let cut = text;
+  while (cut.length > 1 && doc.getTextWidth(`${cut}…`) > maxW) cut = cut.slice(0, -1);
+  return `${cut}…`;
 }
 
 const lineRow = (li: any, ref: string, i: number) => [
@@ -52,23 +80,33 @@ function letterhead(doc: jsPDF, title: string, number: string) {
   doc.setFont("helvetica", "bold").setFontSize(18).text("AGRISUN ETHIOPIA", M, 14);
   doc.setFont("helvetica", "normal").setFontSize(9).text("Solar Equipment · Inventory Management", M, 20);
   doc.setFont("helvetica", "bold").setFontSize(15).text(title, pageW - M, 14, { align: "right" });
-  doc.setFont("helvetica", "normal").setFontSize(9).text(`No. ${number || "-"}`, pageW - M, 20, { align: "right" });
+  // Long transfer numbers list many purchases; show what fits (the Details box has it in full)
+  doc.setFont("helvetica", "normal").setFontSize(9);
+  doc.text(fitText(doc, `No. ${number || "-"}`, pageW / 2 - M), pageW - M, 20, { align: "right" });
 }
 
 // Two side-by-side boxes (e.g. party and details) starting at y; returns their height
 function infoBoxes(doc: jsPDF, y: number, boxes: { heading: string; rows: [string, string][] }[]) {
   const pageW = doc.internal.pageSize.getWidth();
   const boxW = (pageW - M * 2 - 6) / 2;
-  const h = 10 + Math.max(...boxes.map((b) => b.rows.length)) * 6;
-  boxes.forEach(({ heading, rows }, b) => {
+  // Long values (e.g. a transfer number listing many purchases) wrap onto up to 4 lines
+  doc.setFont("helvetica", "normal").setFontSize(9);
+  const laid = boxes.map(({ heading, rows }) => ({
+    heading,
+    rows: rows.map(([label, value]) => ({ label, lines: doc.splitTextToSize(value || "-", boxW - (label ? 30 : 8)).slice(0, 4) as string[] })),
+  }));
+  const heightOf = (rows: { lines: string[] }[]) => 10 + rows.reduce((sum, r) => sum + 6 + (r.lines.length - 1) * 4.2, 0);
+  const h = Math.max(...laid.map((b) => heightOf(b.rows)));
+  laid.forEach(({ heading, rows }, b) => {
     const x = M + b * (boxW + 6);
     doc.setDrawColor(...LINE).setFillColor(249, 250, 251).roundedRect(x, y, boxW, h, 2, 2, "FD");
     doc.setTextColor(...GREEN).setFont("helvetica", "bold").setFontSize(8).text(heading.toUpperCase(), x + 4, y + 6);
-    rows.forEach(([label, value], i) => {
-      const ry = y + 12 + i * 6;
+    let ry = y + 12;
+    rows.forEach(({ label, lines }) => {
       doc.setTextColor(...MUTED).setFont("helvetica", "normal").setFontSize(9).text(label, x + 4, ry);
       doc.setTextColor(...INK).setFont("helvetica", label ? "normal" : "bold");
-      doc.text(doc.splitTextToSize(value || "-", boxW - (label ? 30 : 8))[0], x + (label ? 26 : 4), ry);
+      doc.text(lines, x + (label ? 26 : 4), ry, { lineHeightFactor: 1.3 });
+      ry += 6 + (lines.length - 1) * 4.2;
     });
   });
   return h;
@@ -93,8 +131,8 @@ function itemTable(doc: jsPDF, startY: number, body: any[][], foot: any[]) {
     alternateRowStyles: { fillColor: [249, 250, 251] },
     columnStyles: {
       0: { halign: "center", cellWidth: 10 },
-      2: { cellWidth: 22 },
-      3: { cellWidth: 28 },
+      2: { cellWidth: 20 },
+      3: { cellWidth: 38, fontSize: 8 },
       4: { halign: "right", cellWidth: 12 },
       5: { cellWidth: 12 },
       6: { halign: "right", cellWidth: 23 },
@@ -144,7 +182,8 @@ function pageFooters(doc: jsPDF, label: string) {
     doc.setPage(p);
     doc.setDrawColor(...LINE).setLineWidth(0.2).line(M, pageH - 14, pageW - M, pageH - 14);
     doc.setTextColor(...MUTED).setFont("helvetica", "normal").setFontSize(8);
-    doc.text(`Agrisun Ethiopia · ${label}`, M, pageH - 9);
+    // Keep the label to the left half so a long reference never runs into the page number
+    doc.text(fitText(doc, `Agrisun Ethiopia · ${label}`, pageW / 2 - M - 4), M, pageH - 9);
     doc.text(`Printed ${new Date().toLocaleString("en-GB")} · Page ${p} of ${pages}`, pageW - M, pageH - 9, { align: "right" });
   }
 }
@@ -160,7 +199,7 @@ function finish(doc: jsPDF, fileName: string, mode: "download" | "print") {
 }
 
 // Invoice for one normalized transaction; "download" saves it, "print" opens it with the print dialog
-export function invoicePdf(tx: any, mode: "download" | "print" = "download") {
+export async function invoicePdf(tx: any, mode: "download" | "print" = "download") {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
   const type = tx.transaction_type || "transaction";
@@ -175,7 +214,7 @@ export function invoicePdf(tx: any, mode: "download" | "print" = "download") {
   const boxH = infoBoxes(doc, 38, [{ heading: PARTY_LABEL[type] || "Party", rows: partyRows }, { heading: "Details", rows: detailRows }]);
 
   const lines = tx.items || [];
-  const refs = lineReferences(tx);
+  const refs = await lineReferences(tx);
   let y = itemTable(doc, 38 + boxH + 8, lines.map((li: any, i: number) => lineRow(li, refs[i], i)),
     ["", "Total", "", "", qty(lines.reduce((s: number, li: any) => s + (li.quantity || 0), 0)), "", "", money(tx.total_amount)]);
 
@@ -194,7 +233,7 @@ export function invoicePdf(tx: any, mode: "download" | "print" = "download") {
 }
 
 // Cost sheet for a group of transactions sharing a base reference (see the Cost Sheet page)
-export function costSheetPdf(group: any, mode: "download" | "print" = "download") {
+export async function costSheetPdf(group: any, mode: "download" | "print" = "download") {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
 
@@ -207,8 +246,9 @@ export function costSheetPdf(group: any, mode: "download" | "print" = "download"
   // Lines from every transaction in the group, each with the reference it draws on
   const rows: any[][] = [];
   let totalQty = 0;
-  for (const tx of group.txs || []) {
-    const refs = lineReferences(tx);
+  const refsByTx = await Promise.all((group.txs || []).map(lineReferences));
+  for (const [t, tx] of (group.txs || []).entries()) {
+    const refs = refsByTx[t];
     (tx.items || []).forEach((li: any, i: number) => {
       rows.push(lineRow(li, refs[i], rows.length));
       totalQty += li.quantity || 0;

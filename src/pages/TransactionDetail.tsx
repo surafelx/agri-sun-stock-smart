@@ -83,6 +83,9 @@ const TransactionDetail = () => {
     }
   };
 
+  const makeInvoice = (mode: "download" | "print") =>
+    invoicePdf(transaction, mode).catch((err: any) => toast({ variant: "destructive", title: "Error generating PDF", description: err.message }));
+
   const totalProfit = (transaction?.items || []).reduce((s: number, li: any) => s + (li.profit || 0), 0);
 
   if (loading) {
@@ -157,8 +160,8 @@ const TransactionDetail = () => {
               )}
               <div className="pt-4">
                 <div className="grid grid-cols-2 gap-2">
-                  <Button onClick={() => invoicePdf(transaction, "print")}><Printer className="mr-2 h-4 w-4" />Print Invoice</Button>
-                  <Button variant="outline" onClick={() => invoicePdf(transaction)}><FileText className="mr-2 h-4 w-4" />Download PDF</Button>
+                  <Button onClick={() => makeInvoice("print")}><Printer className="mr-2 h-4 w-4" />Print Invoice</Button>
+                  <Button variant="outline" onClick={() => makeInvoice("download")}><FileText className="mr-2 h-4 w-4" />Download PDF</Button>
                 </div>
               </div>
             </CardContent>

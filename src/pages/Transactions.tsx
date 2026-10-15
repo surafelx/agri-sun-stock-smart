@@ -272,7 +272,7 @@ const Transactions = () => {
   const generatePDF = async (txId: string, mode: "download" | "print" = "download") => {
     try {
       const res = await txApi.get(txId);
-      invoicePdf(normalizeTransaction(res.transaction), mode);
+      await invoicePdf(normalizeTransaction(res.transaction), mode);
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error generating PDF", description: err.message });
     }

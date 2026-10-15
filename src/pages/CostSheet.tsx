@@ -76,7 +76,8 @@ const CostSheet = () => {
     setExpandedRefs(next);
   };
 
-  const generateGroupPDF = (group: any) => costSheetPdf(group);
+  const generateGroupPDF = (group: any) =>
+    costSheetPdf(group).catch((err: any) => toast({ variant: "destructive", title: "Error generating PDF", description: err.message }));
 
   if (loading) {
     return (
