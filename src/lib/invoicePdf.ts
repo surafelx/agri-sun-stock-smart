@@ -24,15 +24,24 @@ const qty = (n: number) => (n || 0).toLocaleString("en-US", { maximumFractionDig
 const day = (d: string) => (d ? new Date(d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "-");
 const capitalize = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
 
+// Marks a reference that was inferred rather than named in the transaction
+export const ESTIMATED = "~";
+
 // The purchase each line draws on. Newer lines record it; for older transfers and sales it is
 // found among the purchases of that line's item, as the one whose number appears in the
 // transaction's reference (e.g. "CRV-31/BBF,LC-4-015411/Jv-264/18,..."). Purchase numbers can
-// themselves contain "/" and ",", so this matches whole numbers rather than splitting the text.
+// themselves contain "/" and ",", so this matches whole numbers rather than splitting the text,
+// and ignores slashes and spaces so typed slips like "FS-00001548Jv-099/18" still match.
+// When the reference names none of the item's purchases, the line is put down to the only
+// purchase made by that date, or (marked ESTIMATED) to the oldest one, as stock goes out first in first out.
 // Purchases and adjustments are their own reference.
 async function lineReferences(tx: any): Promise<string[]> {
   const lines = tx.items || [];
   const ownRef = String(tx.reference_number || "");
   if (tx.transaction_type !== "transfer" && tx.transaction_type !== "sale") return lines.map(() => ownRef || "-");
+  const squash = (s: string) => s.replace(/[\s/]/g, "").toLowerCase();
+  const ownSquashed = squash(ownRef);
+  const txDay = tx.transaction_date ? new Date(tx.transaction_date).getTime() : Infinity;
 
   const itemIdOf = (li: any) => String(li.item_id || li.items?.id || li.item?._id || "");
   const lookup = [...new Set(lines.filter((li: any) => !li.purchaseRef).map(itemIdOf).filter(Boolean))] as string[];
@@ -44,12 +53,20 @@ async function lineReferences(tx: any): Promise<string[]> {
 
   return lines.map((li: any) => {
     if (li.purchaseRef) return li.purchaseRef;
+    const purchases = purchasesOf[itemIdOf(li)] || [];
     // Longest match wins, so "FS-1" never claims a reference that really lists "FS-10"
-    const named = (purchasesOf[itemIdOf(li)] || [])
+    const named = purchases
       .map((p) => String(p.reference_number || ""))
-      .filter((ref) => ref && ownRef.includes(ref))
+      .filter((ref) => ref && ownSquashed.includes(squash(ref)))
       .sort((a, b) => b.length - a.length);
-    return named[0] || "-";
+    if (named[0]) return named[0];
+
+    const earlier = purchases
+      .filter((p) => p.reference_number && new Date(p.transaction_date).getTime() <= txDay)
+      .sort((a, b) => new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime());
+    if (earlier.length === 1) return earlier[0].reference_number;
+    if (earlier.length > 1) return `${ESTIMATED}${earlier[0].reference_number}`;
+    return "-";
   });
 }
 
@@ -89,11 +106,16 @@ function letterhead(doc: jsPDF, title: string, number: string) {
 function infoBoxes(doc: jsPDF, y: number, boxes: { heading: string; rows: [string, string][] }[]) {
   const pageW = doc.internal.pageSize.getWidth();
   const boxW = (pageW - M * 2 - 6) / 2;
-  // Long values (e.g. a transfer number listing many purchases) wrap onto up to 4 lines
+  // Long values (e.g. a transfer number listing many purchases) wrap onto up to 6 lines,
+  // ending in "…" if there is more
   doc.setFont("helvetica", "normal").setFontSize(9);
+  const wrap = (value: string, width: number) => {
+    const all = doc.splitTextToSize(value || "-", width) as string[];
+    return all.length <= 6 ? all : [...all.slice(0, 5), fitText(doc, `${all[5]}…`, width)];
+  };
   const laid = boxes.map(({ heading, rows }) => ({
     heading,
-    rows: rows.map(([label, value]) => ({ label, lines: doc.splitTextToSize(value || "-", boxW - (label ? 30 : 8)).slice(0, 4) as string[] })),
+    rows: rows.map(([label, value]) => ({ label, lines: wrap(value, boxW - (label ? 30 : 8)) })),
   }));
   const heightOf = (rows: { lines: string[] }[]) => 10 + rows.reduce((sum, r) => sum + 6 + (r.lines.length - 1) * 4.2, 0);
   const h = Math.max(...laid.map((b) => heightOf(b.rows)));
@@ -144,6 +166,16 @@ function itemTable(doc: jsPDF, startY: number, body: any[][], foot: any[]) {
     },
   });
   return (doc as any).lastAutoTable.finalY as number;
+}
+
+// A small note under the table when any reference had to be estimated; returns the new y
+function estimateNote(doc: jsPDF, y: number, refs: string[]) {
+  if (!refs.some((r) => r.startsWith(ESTIMATED))) return y;
+  doc.setTextColor(...MUTED).setFont("helvetica", "italic").setFontSize(8);
+  const note = doc.splitTextToSize(`${ESTIMATED} The reference number does not name this line's purchase; shown is the item's oldest purchase by that date (first in, first out).`, doc.internal.pageSize.getWidth() - M * 2);
+  y = room(doc, y + 5, note.length * 3.5);
+  doc.text(note, M, y);
+  return y + (note.length - 1) * 3.5;
 }
 
 // Moves to a new page when the next block of height h would run into the footer
@@ -220,6 +252,7 @@ export async function invoicePdf(tx: any, mode: "download" | "print" = "download
 
   // Notes beside the grand total, both kept together on one page
   const noteLines = tx.notes ? doc.setFont("helvetica", "normal").setFontSize(9).splitTextToSize(tx.notes, pageW - M * 2 - 84) : [];
+  y = estimateNote(doc, y, refs);
   y = room(doc, y + 8, Math.max(12, 9 + noteLines.length * 4));
   totalBadge(doc, y, "TOTAL AMOUNT", tx.total_amount);
   if (noteLines.length) {
@@ -256,6 +289,7 @@ export async function costSheetPdf(group: any, mode: "download" | "print" = "dow
   }
   let y = itemTable(doc, 38 + boxH + 8, rows, ["", "Total", "", "", qty(totalQty), "", "", money(group.totalCost)]);
 
+  y = estimateNote(doc, y, refsByTx.flat());
   y = room(doc, y + 8, 12);
   totalBadge(doc, y, "TOTAL COST", group.totalCost, M);
   totalBadge(doc, y, "TOTAL REVENUE", group.totalRevenue, pageW - M - 70);
