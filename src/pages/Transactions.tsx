@@ -11,9 +11,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
-import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit, ArrowRightLeft, Search, ArrowLeft, Pencil } from "lucide-react";
+import { Plus, ShoppingCart, TrendingUp, Trash2, FileText, Download, Edit, ArrowRightLeft, Search, ArrowLeft, Pencil, Printer } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import jsPDF from 'jspdf';
+import { invoicePdf } from "@/lib/invoicePdf";
 import * as XLSX from 'xlsx';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -268,35 +268,11 @@ const Transactions = () => {
     return newItems;
   };
 
-  const generatePDF = async (txId: string) => {
+  // Fetches the full transaction (with who prepared it) and downloads or prints its invoice
+  const generatePDF = async (txId: string, mode: "download" | "print" = "download") => {
     try {
       const res = await txApi.get(txId);
-      const tx = normalizeTransaction(res.transaction);
-      const doc = new jsPDF();
-      doc.setFontSize(20);
-      doc.text('INVOICE', 105, 20, { align: 'center' });
-      doc.setFontSize(12);
-      doc.text(`Type: ${tx.transaction_type?.toUpperCase()}`, 20, 40);
-      doc.text(`Reference: ${tx.reference_number}`, 20, 50);
-      doc.text(`Date: ${new Date(tx.transaction_date).toLocaleDateString()}`, 20, 60);
-      doc.text(`${tx.transaction_type === 'purchase' ? 'Supplier' : tx.transaction_type === 'transfer' ? 'Client/Customer' : 'Customer'}: ${tx.customer_supplier_name}`, 20, 70);
-      if (tx.customer_supplier_contact) doc.text(`Contact: ${tx.customer_supplier_contact}`, 20, 80);
-      let y = 100;
-      doc.setFontSize(10);
-      doc.text('Item', 20, y); doc.text('Qty', 120, y); doc.text('Unit Price', 140, y); doc.text('Total', 170, y);
-      y += 10; doc.line(20, y, 190, y); y += 5;
-      (tx.items || []).forEach((li: any) => {
-        doc.text(li.items?.name || 'Unknown', 20, y);
-        doc.text(String(li.quantity), 120, y);
-        doc.text(`${li.unit_price.toFixed(2)}`, 140, y);
-        doc.text(`${li.total_price.toFixed(2)}`, 170, y);
-        y += 10;
-      });
-      y += 10; doc.line(20, y, 190, y); y += 10;
-      doc.setFontSize(12);
-      doc.text(`Total: ${tx.total_amount?.toFixed(2)}`, 140, y);
-      doc.save(`invoice-${tx.reference_number}.pdf`);
-      toast({ title: "PDF generated" });
+      invoicePdf(normalizeTransaction(res.transaction), mode);
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error generating PDF", description: err.message });
     }
@@ -532,7 +508,8 @@ const Transactions = () => {
                           <TableCell className="text-right font-semibold text-sm py-2">{tx.total_amount?.toLocaleString()}</TableCell>
                           <TableCell className="text-right py-2">
                             <div className="flex justify-end gap-1">
-                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); generatePDF(tx.id); }} className="h-7 w-7 p-0" title="PDF"><FileText className="h-3.5 w-3.5" /></Button>
+                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); generatePDF(tx.id, "print"); }} className="h-7 w-7 p-0" title="Print invoice"><Printer className="h-3.5 w-3.5" /></Button>
+                              <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); generatePDF(tx.id); }} className="h-7 w-7 p-0" title="Download PDF"><FileText className="h-3.5 w-3.5" /></Button>
                               <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openEditDialog(tx); }} className="h-7 w-7 p-0" title="Edit"><Edit className="h-3.5 w-3.5" /></Button>
                               <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setDeleteId(tx.id); }} className="h-7 w-7 p-0" title="Delete"><Trash2 className="h-3.5 w-3.5 text-destructive" /></Button>
                             </div>
@@ -879,7 +856,8 @@ const Transactions = () => {
               )}
 
               <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => { setViewTx(null); generatePDF(viewTx.id); }}><FileText className="mr-1.5 h-4 w-4" />PDF</Button>
+                <Button variant="outline" size="sm" onClick={() => generatePDF(viewTx.id, "print")}><Printer className="mr-1.5 h-4 w-4" />Print</Button>
+                <Button variant="outline" size="sm" onClick={() => generatePDF(viewTx.id)}><FileText className="mr-1.5 h-4 w-4" />PDF</Button>
                 <Button variant="outline" size="sm" onClick={() => { setViewTx(null); openEditDialog(viewTx); }}><Edit className="mr-1.5 h-4 w-4" />Edit</Button>
                 <Button variant="outline" size="sm" onClick={() => setViewTx(null)}>Close</Button>
               </div>

@@ -11,9 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ArrowLeft, ShoppingCart, TrendingUp, FileText, ArrowRightLeft, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, ShoppingCart, TrendingUp, FileText, ArrowRightLeft, Pencil, Trash2, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import jsPDF from 'jspdf';
+import { invoicePdf } from "@/lib/invoicePdf";
 
 const TransactionDetail = () => {
   const { transactionId } = useParams<{ transactionId: string }>();
@@ -81,34 +81,6 @@ const TransactionDetail = () => {
     } catch (err: any) {
       toast({ variant: "destructive", title: "Error", description: err.message });
     }
-  };
-
-  const generatePDF = () => {
-    if (!transaction) return;
-    const doc = new jsPDF();
-    doc.setFontSize(20);
-    doc.text('INVOICE', 105, 20, { align: 'center' });
-    doc.setFontSize(12);
-    doc.text(`Type: ${transaction.transaction_type?.toUpperCase()}`, 20, 40);
-    doc.text(`Reference: ${transaction.reference_number}`, 20, 50);
-    doc.text(`Date: ${new Date(transaction.transaction_date).toLocaleDateString()}`, 20, 60);
-    doc.text(`${transaction.transaction_type === 'purchase' ? 'Supplier' : transaction.transaction_type === 'transfer' ? 'Client/Customer' : 'Customer'}: ${transaction.customer_supplier_name}`, 20, 70);
-    if (transaction.customer_supplier_contact) doc.text(`Contact: ${transaction.customer_supplier_contact}`, 20, 80);
-    let y = 100;
-    doc.setFontSize(10);
-    doc.text('Item', 20, y); doc.text('Qty', 120, y); doc.text('Unit Price', 140, y); doc.text('Total', 170, y);
-    y += 10; doc.line(20, y, 190, y); y += 5;
-    (transaction.items || []).forEach((li: any) => {
-      doc.text(li.items?.name || 'Unknown', 20, y);
-      doc.text(String(li.quantity), 120, y);
-      doc.text(`${li.unit_price?.toFixed(2)}`, 140, y);
-      doc.text(`${li.total_price?.toFixed(2)}`, 170, y);
-      y += 10;
-    });
-    y += 10; doc.line(20, y, 190, y); y += 10;
-    doc.setFontSize(12);
-    doc.text(`Total: ${transaction.total_amount?.toFixed(2)}`, 140, y);
-    doc.save(`invoice-${transaction.reference_number}.pdf`);
   };
 
   const totalProfit = (transaction?.items || []).reduce((s: number, li: any) => s + (li.profit || 0), 0);
@@ -184,7 +156,10 @@ const TransactionDetail = () => {
                 </div>
               )}
               <div className="pt-4">
-                <Button onClick={generatePDF} className="w-full"><FileText className="mr-2 h-4 w-4" />Generate PDF Invoice</Button>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button onClick={() => invoicePdf(transaction, "print")}><Printer className="mr-2 h-4 w-4" />Print Invoice</Button>
+                  <Button variant="outline" onClick={() => invoicePdf(transaction)}><FileText className="mr-2 h-4 w-4" />Download PDF</Button>
+                </div>
               </div>
             </CardContent>
           </Card>

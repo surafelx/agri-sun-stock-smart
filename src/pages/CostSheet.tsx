@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Search, ArrowRightLeft, TrendingUp, DollarSign, Package, FileText, ChevronDown, ChevronRight } from "lucide-react";
-import jsPDF from "jspdf";
+import { costSheetPdf } from "@/lib/invoicePdf";
 
 const CostSheet = () => {
   const navigate = useNavigate();
@@ -76,34 +76,7 @@ const CostSheet = () => {
     setExpandedRefs(next);
   };
 
-  const generateGroupPDF = (group: any) => {
-    const doc = new jsPDF();
-    doc.setFontSize(16);
-    doc.text("COST SHEET", 105, 15, { align: "center" });
-    doc.setFontSize(10);
-    doc.text(`Reference: ${group.ref}`, 20, 30);
-    doc.text(`Type: ${group.type?.toUpperCase()}`, 20, 37);
-    doc.text(`Date: ${new Date(group.date).toLocaleDateString()}`, 20, 44);
-    doc.text(`Client/Supplier: ${group.client || "-"}`, 20, 51);
-    let y = 64;
-    doc.setFontSize(10);
-    doc.text("Item", 20, y); doc.text("SKU", 90, y); doc.text("Qty", 120, y); doc.text("Unit Price", 140, y); doc.text("Total", 170, y);
-    y += 5; doc.line(20, y, 190, y); y += 7;
-    for (const li of group.items) {
-      doc.text(li.items?.name || "Unknown", 20, y);
-      doc.text(li.items?.sku || "-", 90, y);
-      doc.text(String(li.quantity), 120, y);
-      doc.text(`${(li.unit_price || 0).toFixed(2)}`, 140, y);
-      doc.text(`${(li.total_price || 0).toFixed(2)}`, 170, y);
-      y += 7;
-    }
-    y += 5; doc.line(20, y, 190, y); y += 7;
-    doc.setFontSize(11);
-    doc.text(`Total Cost: ${group.totalCost.toLocaleString()}`, 20, y);
-    doc.text(`Total Revenue: ${group.totalRevenue.toLocaleString()}`, 120, y);
-    doc.save(`cost-sheet-${group.ref}.pdf`);
-    toast({ title: "PDF generated" });
-  };
+  const generateGroupPDF = (group: any) => costSheetPdf(group);
 
   if (loading) {
     return (
