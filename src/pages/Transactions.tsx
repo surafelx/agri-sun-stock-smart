@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { transactions as txApi, items as itemsApi, categories as categoriesApi, suppliers as suppliersApi, normalizeTransaction, normalizeItem, normalizeCategory, normalizeSubcategory } from "@/lib/api";
 import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,17 @@ const Transactions = () => {
   useEffect(() => {
     fetchAll();
   }, [debouncedSearch, typeFilter, startDate, endDate]);
+
+  // /transactions?edit=<id> opens that transaction's editor (the detail page links here)
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    const id = searchParams.get('edit');
+    if (!id) return;
+    setSearchParams({}, { replace: true });
+    txApi.get(id)
+      .then((res) => openEditDialog(normalizeTransaction(res.transaction)))
+      .catch((err) => toast({ variant: "destructive", title: "Couldn't open the transaction", description: err.message }));
+  }, [searchParams]);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -213,9 +225,9 @@ const Transactions = () => {
           item: i.itemId, quantity: parseFloat(i.quantity), unitPrice: parseFloat(i.unitPrice) || 0, purchaseRef: i.purchaseRef || undefined,
         }));
         if (lineItems.length === 0) { toast({ variant: "destructive", title: "Error", description: "Add at least one item" }); return; }
-        // Newly picked purchases replace the purchase refs after the slash, as on create
+        // On a transfer, newly picked purchases replace the purchase refs after the slash, as on create
         const purchaseRefs = editFormData.items.filter((i) => i.purchaseRef).map((i) => i.purchaseRef);
-        if (purchaseRefs.length > 0) reference = `${reference.split('/')[0]}/${purchaseRefs.join(',')}`;
+        if (editType === 'transfer' && purchaseRefs.length > 0) reference = `${reference.split('/')[0]}/${purchaseRefs.join(',')}`;
       }
       await txApi.update(editingTx.id, {
         transactionDate: editFormData.date,
@@ -226,7 +238,7 @@ const Transactions = () => {
         notes: editFormData.notes || null,
         ...(lineItems && { items: lineItems }),
       });
-      toast({ title: "Success", description: lineItems ? "Transfer updated and stock adjusted" : "Transaction updated" });
+      toast({ title: "Saved", description: lineItems ? `${editTypeLabel} updated and stock adjusted` : "Transaction updated" });
       setEditDialogOpen(false);
       setEditingTx(null);
       fetchAll();
@@ -248,8 +260,17 @@ const Transactions = () => {
     }
   };
 
-  // Rewriting lines moves stock, so the API only lets admins do it
-  const canEditLines = editingTx?.transaction_type === 'transfer' && user?.role === 'admin';
+  // Purchases, sales and transfers can have their lines rewritten; that moves stock (and, for a
+  // purchase, the average cost), so the API only lets admins do it. Adjustments stay as they are.
+  const LINE_EDITABLE = ['purchase', 'sale', 'transfer'];
+  const editType: string = editingTx?.transaction_type || '';
+  const canEditLines = LINE_EDITABLE.includes(editType) && user?.role === 'admin';
+  const editTypeLabel = editType ? editType.charAt(0).toUpperCase() + editType.slice(1) : 'Transaction';
+  const editLinesHint: Record<string, string> = {
+    purchase: "The old quantities come out of stock and the new ones go in. The items' average cost is recalculated.",
+    sale: "The old quantities go back into stock and the new ones are taken out. Profit is recalculated at today's cost price.",
+    transfer: "The old quantities go back into stock and the new ones are taken out.",
+  };
 
   const openEditDialog = (tx: any) => {
     setEditingTx(tx);
@@ -563,12 +584,12 @@ const Transactions = () => {
       <Dialog open={editDialogOpen} onOpenChange={(open) => { setEditDialogOpen(open); if (!open) setEditingTx(null); }}>
         <DialogContent className={canEditLines ? "max-w-5xl max-h-[90vh] overflow-y-auto" : "max-w-xl"}>
           <DialogHeader>
-            <DialogTitle>{canEditLines ? "Edit transfer" : "Edit transaction"}</DialogTitle>
+            <DialogTitle>Edit {editTypeLabel.toLowerCase()}</DialogTitle>
             <DialogDescription>
               {canEditLines
-                ? "Old quantities go back into stock and the new ones are taken out."
-                : editingTx?.transaction_type === 'transfer'
-                  ? "Only an admin can change the line items of a transfer."
+                ? editLinesHint[editType]
+                : LINE_EDITABLE.includes(editType)
+                  ? "Only an admin can change the line items."
                   : "Line items can't be changed. Delete and recreate the transaction instead."}
             </DialogDescription>
           </DialogHeader>

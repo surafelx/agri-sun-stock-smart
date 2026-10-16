@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ArrowLeft, FileText, Pencil, Trash2, Printer } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { invoicePdf } from "@/lib/invoicePdf";
 import PageHeader from "@/components/app/PageHeader";
 import { TxTypeBadge } from "@/components/app/Badges";
@@ -19,6 +20,7 @@ import { partyLabel, TxDetailsBlock, TxLinesTable } from "@/components/app/Trans
 const TransactionDetail = () => {
   const { transactionId } = useParams<{ transactionId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [transaction, setTransaction] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -121,7 +123,9 @@ const TransactionDetail = () => {
             <>
               <Button variant="outline" size="sm" onClick={() => makeInvoice("print")}><Printer className="mr-1.5 h-4 w-4" />Print</Button>
               <Button variant="outline" size="sm" onClick={() => makeInvoice("download")}><FileText className="mr-1.5 h-4 w-4" />Download PDF</Button>
-              <Button variant="outline" size="sm" onClick={openEdit}><Pencil className="mr-1.5 h-4 w-4" />Edit</Button>
+              {/* Admins edit purchases, sales and transfers in the full editor, which can change the lines too */}
+              <Button variant="outline" size="sm" onClick={() => user?.role === 'admin' && ['purchase', 'sale', 'transfer'].includes(transaction.transaction_type)
+                ? navigate(`/transactions?edit=${transactionId}`) : openEdit()}><Pencil className="mr-1.5 h-4 w-4" />Edit</Button>
               <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}><Trash2 className="mr-1.5 h-4 w-4" />Delete</Button>
             </>
           }
